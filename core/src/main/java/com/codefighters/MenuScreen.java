@@ -7,7 +7,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 public class MenuScreen implements Screen {
     final CodeFightersGame game;
-    float timer = 0;
+    float frame = 0;
 
     public MenuScreen(final CodeFightersGame game) {
         this.game = game;
@@ -15,16 +15,16 @@ public class MenuScreen implements Screen {
 
     @Override
     public void render(float delta) {
-        timer += delta;
-        Gdx.gl.glClearColor(0.04f, 0.04f, 0.1f, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
+        frame++;
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
 
-        // Background grid
+        Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
+        // Grid background
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.1f, 0.1f, 0.24f, 1);
+        game.shapeRenderer.setColor(0.08f, 0.08f, 0.15f, 1);
         for (int i = 0; i < w; i += 40) {
             game.shapeRenderer.line(i, 0, i, h);
         }
@@ -33,28 +33,13 @@ public class MenuScreen implements Screen {
         }
         game.shapeRenderer.end();
 
+        // Title
         game.batch.begin();
+        game.fontBold.setColor(0.31f, 0.76f, 0.97f, 1);
+        game.fontBold.draw(game.batch, "CODE FIGHTERS", w/2 - 180, h * 0.7f);
 
-        // Title with glow effect
-        game.fontBold.setColor(0.2f, 0.76f, 0.97f, 1);
-        game.fontBold.draw(game.batch, "CODE FIGHTERS", w/2 - 180, h * 0.75f);
-
-        game.font.setColor(0.5f, 0.5f, 0.5f, 1);
-        game.font.draw(game.batch, "Developers vs Malware", w/2 - 130, h * 0.65f);
-
-        // Subtitle
-        game.fontSmall.setColor(0.4f, 0.4f, 0.4f, 1);
-        game.fontSmall.draw(game.batch, "Learn cybersecurity through arcade combat",
-            w/2 - 160, h * 0.58f);
-
-        // Animated code particles in background
-        for (int i = 0; i < 8; i++) {
-            float px = (float)(Math.sin(timer * 0.5 + i) * 200 + w/2);
-            float py = (float)(Math.cos(timer * 0.3 + i * 0.7) * 100 + h * 0.4f);
-            game.fontSmall.setColor(0, 1, 0.8f, 0.3f);
-            game.fontSmall.draw(game.batch, Math.random() > 0.5 ? "1" : "0", px, py);
-        }
-
+        game.fontSmall.setColor(0.6f, 0.6f, 0.6f, 1);
+        game.fontSmall.draw(game.batch, "Security Awareness Arcade Fighter", w/2 - 150, h * 0.62f);
         game.batch.end();
 
         // Buttons
@@ -63,13 +48,13 @@ public class MenuScreen implements Screen {
         float startY = h * 0.42f;
 
         // Start Fight button
-        drawButton(btnX, startY, btnW, btnH, "START FIGHT", 0x00bcd4, 0x006064);
+        drawButton(btnX, startY, btnW, btnH, "START FIGHT", 0x00bcd4, 0x008ba3);
         if (isButtonClicked(btnX, startY, btnW, btnH)) {
-            game.setScreen(game.selectScreen);
+            game.setScreen(game.charSelectScreen);
         }
 
         // Gallery button
-        drawButton(btnX, startY - 80, btnW, btnH, "GALLERY", 0x7c4dff, 0x311b92);
+        drawButton(btnX, startY - 80, btnW, btnH, "GALLERY", 0x7c4dff, 0x5e35b1);
         if (isButtonClicked(btnX, startY - 80, btnW, btnH)) {
             game.setScreen(game.galleryScreen);
         }
@@ -77,15 +62,14 @@ public class MenuScreen implements Screen {
         // Controls hint
         game.batch.begin();
         game.fontSmall.setColor(0.4f, 0.4f, 0.4f, 1);
-        game.fontSmall.draw(game.batch, "Tap buttons or use on-screen controls",
-            w/2 - 130, h * 0.12f);
+        game.fontSmall.draw(game.batch, "Tap buttons or use on-screen controls", w/2 - 130, h * 0.12f);
         game.batch.end();
     }
 
-    void drawButton(float x, float y, float w, float h, String text, int hoverCol, int col) {
+    void drawButton(float x, float y, float bw, float bh, String text, int hoverCol, int col) {
         float mx = Gdx.input.getX();
         float my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        boolean hover = mx >= x && mx <= x + w && my >= y && my <= y + h;
+        boolean hover = mx >= x && mx <= x + bw && my >= y && my <= y + bh;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         if (hover) {
@@ -95,25 +79,24 @@ public class MenuScreen implements Screen {
             game.shapeRenderer.setColor(((col >> 16) & 0xFF)/255f,
                 ((col >> 8) & 0xFF)/255f, (col & 0xFF)/255f, 1);
         }
-        game.shapeRenderer.rect(x, y, w, h);
+        game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(1, 1, 1, 1);
-        game.shapeRenderer.rect(x, y, w, h);
+        game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
         game.batch.begin();
         game.font.setColor(1, 1, 1, 1);
-        game.font.draw(game.batch, text, x + w/2 - 70, y + h/2 + 10);
+        game.font.draw(game.batch, text, x + bw/2 - 60, y + bh/2 + 10);
         game.batch.end();
     }
 
     boolean isButtonClicked(float x, float y, float w, float h) {
         float mx = Gdx.input.getX();
         float my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        boolean hover = mx >= x && mx <= x + w && my >= y && my <= y + h;
-        return hover && Gdx.input.justTouched();
+        return mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
     }
 
     @Override public void show() {}

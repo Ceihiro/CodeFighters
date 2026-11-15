@@ -55,6 +55,12 @@ public class FightScreen implements Screen {
     float btnSplX, btnSplY, btnBlkX, btnBlkY;
     float btnSize;
 
+    // Touch state tracking
+    boolean attackJustPressed = false;
+    boolean specialJustPressed = false;
+    boolean attackWasPressed = false;
+    boolean specialWasPressed = false;
+
     public FightScreen(final CodeFightersGame game) {
         this.game = game;
     }
@@ -125,8 +131,8 @@ public class FightScreen implements Screen {
         // Input - combine keyboard and touch
         boolean left = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.LEFT) || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A) || touchLeft;
         boolean right = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT) || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D) || touchRight;
-        boolean attack = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.J) || (touchAttack && !attackJustPressed);
-        boolean special = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.K) || (touchSpecial && !specialJustPressed);
+        boolean attack = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.J) || (touchAttack && !attackWasPressed);
+        boolean special = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.K) || (touchSpecial && !specialWasPressed);
         boolean block = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.L) || touchBlock;
 
         // Track touch "just pressed" state
@@ -136,8 +142,8 @@ public class FightScreen implements Screen {
         if (touchSpecial && !specialWasPressed) {
             special = true;
         }
-        attackJustPressed = touchAttack;
-        specialJustPressed = touchSpecial;
+        attackWasPressed = touchAttack;
+        specialWasPressed = touchSpecial;
 
         playerBlock = block && !playerState.startsWith("ATTACK") && !playerState.equals("SPECIAL") && !playerState.equals("HIT");
 
@@ -169,6 +175,7 @@ public class FightScreen implements Screen {
             playerVX = 0;
             if (playerAnimTimer == 10) {
                 projectiles.add(new Projectile(playerX + playerFacing * 40, playerY - 60, playerFacing * 6, 15));
+                game.playSound(game.sndSpecialFire, 0.7f);
             }
             if (playerAnimTimer > 35) { playerState = "IDLE"; playerAnimTimer = 0; }
         } else if (playerState.equals("HIT")) {
@@ -243,6 +250,7 @@ public class FightScreen implements Screen {
                 if (enemyInvuln == 0) {
                     enemyHP -= p.damage;
                     enemyState = "HIT"; enemyAnimTimer = 0; enemyInvuln = 10;
+                    game.playSound(game.sndDamageGlitch, 0.7f);
                     spawnCodeBurst(enemyX, enemyY - 50);
                     hitPause = 8;
                     comboCount++; comboTimer = 60; comboX = enemyX; comboY = enemyY - 120;
@@ -259,12 +267,14 @@ public class FightScreen implements Screen {
                 if (!enemyState.equals("BLOCK")) {
                     enemyHP -= playerHitbox.damage;
                     enemyState = "HIT"; enemyAnimTimer = 0; enemyInvuln = playerHitbox.hitstun;
+                    game.playSound(game.sndHitPunch, 0.8f);
                     spawnParticles(enemyX, enemyY - 50, 0x00ffff, 10);
                     spawnCodeBurst(enemyX, enemyY - 60);
                     hitPause = 5;
                     comboCount++; comboTimer = 60; comboX = enemyX; comboY = enemyY - 120;
                 } else {
                     enemyHP -= playerHitbox.damage * 0.2f;
+                    game.playSound(game.sndBlockShield, 0.6f);
                     spawnParticles(enemyX, enemyY - 50, 0xffff00, 4);
                 }
                 playerHitbox = null;
@@ -277,10 +287,12 @@ public class FightScreen implements Screen {
                 enemyHitbox.y < playerY && enemyHitbox.y + enemyHitbox.h > playerY - 90) {
                 if (playerBlock) {
                     playerHP -= enemyHitbox.damage * 0.3f;
+                    game.playSound(game.sndBlockShield, 0.6f);
                     spawnParticles(playerX, playerY - 50, 0xffff00, 4);
                 } else {
                     playerHP -= enemyHitbox.damage;
                     playerState = "HIT"; playerAnimTimer = 0; playerInvuln = enemyHitbox.hitstun;
+                    game.playSound(game.sndDamageGlitch, 0.7f);
                     spawnParticles(playerX, playerY - 50, 0xff4444, 8);
                     hitPause = 6;
                     comboCount = 0;
@@ -309,12 +321,6 @@ public class FightScreen implements Screen {
             game.setScreen(game.loseScreen);
         }
     }
-
-    // Touch state tracking
-    boolean attackJustPressed = false;
-    boolean specialJustPressed = false;
-    boolean attackWasPressed = false;
-    boolean specialWasPressed = false;
 
     void drawFight() {
         float w = Gdx.graphics.getWidth();
