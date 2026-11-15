@@ -7,12 +7,16 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 public class GalleryScreen implements Screen {
     final CodeFightersGame game;
-    int tab = 0;
+    int tab = 0; // 0 = Characters, 1 = Enemies, 2 = Combos
     int selectedChar = 0;
-    int selectedEnemy = 0;
 
     public GalleryScreen(final CodeFightersGame game) {
         this.game = game;
+    }
+
+    @Override
+    public void show() {
+        game.updateFontScales();
     }
 
     @Override
@@ -20,284 +24,224 @@ public class GalleryScreen implements Screen {
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
 
-        Gdx.gl.glClearColor(0.04f, 0.04f, 0.1f, 1);
+        Gdx.gl.glClearColor(0.03f, 0.03f, 0.08f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // Cyberpunk background grid
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.1f, 0.1f, 0.24f, 1);
-        for (int i = 0; i < w; i += 40) {
-            game.shapeRenderer.line(i, 0, i, h);
-        }
-        for (int i = 0; i < h; i += 40) {
-            game.shapeRenderer.line(0, i, w, i);
-        }
+        game.shapeRenderer.setColor(0.08f, 0.10f, 0.20f, 1);
+        for (int i = 0; i < w; i += 50) game.shapeRenderer.line(i, 0, i, h);
+        for (int i = 0; i < h; i += 50) game.shapeRenderer.line(0, i, w, i);
         game.shapeRenderer.end();
 
+        // Header Title
         game.batch.begin();
-        game.fontBold.setColor(1, 1, 1, 1);
-        game.fontBold.draw(game.batch, "GALLERY", w/2 - 80, h * 0.95f);
+        game.fontTitle.setColor(1, 1, 1, 1);
+        game.drawTextCentered(game.fontTitle, "INTEL ARCHIVE", w / 2f, h * 0.94f);
         game.batch.end();
 
-        float tabW = w * 0.25f;
-        float tabH = h * 0.07f;
-        float tabY = h * 0.84f;
+        // Tabs
+        float tabW = w * 0.27f;
+        float tabH = h * 0.075f;
+        float tabY = h * 0.85f;
 
-        drawTab(w * 0.08f, tabY, tabW, tabH, "CHARACTERS", tab == 0);
-        drawTab(w * 0.37f, tabY, tabW, tabH, "ENEMIES", tab == 1);
+        drawTab(w * 0.07f, tabY, tabW, tabH, "CHARACTERS", tab == 0);
+        drawTab(w * 0.365f, tabY, tabW, tabH, "THREATS", tab == 1);
         drawTab(w * 0.66f, tabY, tabW, tabH, "COMBOS", tab == 2);
 
-        if (isTabClicked(w * 0.08f, tabY, tabW, tabH)) tab = 0;
-        if (isTabClicked(w * 0.37f, tabY, tabW, tabH)) tab = 1;
+        if (isTabClicked(w * 0.07f, tabY, tabW, tabH)) tab = 0;
+        if (isTabClicked(w * 0.365f, tabY, tabW, tabH)) tab = 1;
         if (isTabClicked(w * 0.66f, tabY, tabW, tabH)) tab = 2;
 
-        float contentY = h * 0.78f;
+        float contentY = h * 0.82f;
         float contentH = h * 0.68f;
 
         if (tab == 0) drawCharactersTab(w, h, contentY, contentH);
         else if (tab == 1) drawEnemiesTab(w, h, contentY, contentH);
         else drawCombosTab(w, h, contentY, contentH);
 
-        drawButton(w * 0.02f, h * 0.02f, w * 0.12f, h * 0.06f, "BACK", 0x555555, 0x222222);
-        if (isButtonClicked(w * 0.02f, h * 0.02f, w * 0.12f, h * 0.06f)) {
+        // Back button
+        float btnW = w * 0.18f;
+        float btnH = h * 0.075f;
+        drawButton(w * 0.04f, h * 0.035f, btnW, btnH, "BACK", 0x546e7a, 0x263238);
+        if (isButtonClicked(w * 0.04f, h * 0.035f, btnW, btnH)) {
             game.setScreen(game.menuScreen);
         }
     }
 
     void drawCharactersTab(float w, float h, float contentY, float contentH) {
-        float listW = w * 0.25f;
-        float cardX = w * 0.32f;
-        float cardW = w * 0.62f;
+        float cardX = w * 0.07f;
+        float cardW = w * 0.86f;
+        float cardY = contentY - contentH;
 
+        // Container
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.07f, 0.07f, 0.14f, 1);
-        game.shapeRenderer.rect(w * 0.03f, contentY - contentH, listW, contentH);
+        game.shapeRenderer.setColor(0.06f, 0.08f, 0.14f, 0.92f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.2f, 0.2f, 0.3f, 1);
-        game.shapeRenderer.rect(w * 0.03f, contentY - contentH, listW, contentH);
+        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 0.9f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
 
-        float entryH = h * 0.1f;
-        float entryY = contentY - 20;
-        boolean isSelected = (selectedChar == 0);
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(isSelected ? 0.2f : 0.1f, isSelected ? 0.4f : 0.1f, isSelected ? 0.5f : 0.2f, 1);
-        game.shapeRenderer.rect(w * 0.035f, entryY - entryH, listW - 0.01f, entryH);
-        game.shapeRenderer.end();
+        // Character Sprite (Left side)
+        float spriteH = contentH * 0.85f;
+        float spriteW = spriteH;
+        float spriteX = cardX + 30;
+        float spriteY = cardY + contentH * 0.08f;
 
         game.batch.begin();
-        game.fontSmall.setColor(1, 1, 1, 1);
-        game.fontSmall.draw(game.batch, "Team Lead", w * 0.05f, entryY - entryH/2 + 5);
-        game.fontSmall.setColor(0.5f, 0.5f, 0.5f, 1);
-        game.fontSmall.draw(game.batch, "Game Architect", w * 0.05f, entryY - entryH/2 - 15);
+        if (game.texPlayerIdle != null) {
+            game.batch.draw(game.texPlayerIdle, spriteX, spriteY, spriteW, spriteH);
+        }
         game.batch.end();
 
-        if (isEntryClicked(w * 0.035f, entryY - entryH, listW - 0.01f, entryH)) selectedChar = 0;
-
+        // Character Info (Right side)
         CharacterData c = CharacterData.getTeamLead();
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.07f, 0.07f, 0.14f, 1);
-        game.shapeRenderer.rect(cardX, contentY - contentH, cardW, contentH);
-        game.shapeRenderer.end();
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.shapeRenderer.rect(cardX, contentY - contentH, cardW, contentH);
-        game.shapeRenderer.end();
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.shapeRenderer.rect(cardX + 30, contentY - 180, 120, 120);
-        game.shapeRenderer.setColor(1, 0.8f, 0.67f, 1);
-        game.shapeRenderer.rect(cardX + 50, contentY - 160, 80, 60);
-        game.shapeRenderer.end();
+        float textX = cardX + spriteW + 60;
+        float textY = contentY - 40;
 
         game.batch.begin();
-        game.fontBold.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.fontBold.draw(game.batch, c.name, cardX + 180, contentY - 50);
-        game.fontSmall.setColor(0.7f, 0.7f, 0.7f, 1);
-        game.fontSmall.draw(game.batch, c.subtitle, cardX + 180, contentY - 80);
+        game.fontTitle.setColor(0.31f, 0.85f, 1.0f, 1f);
+        game.fontTitle.draw(game.batch, c.name, textX, textY);
 
-        game.fontSmall.setColor(0.9f, 0.9f, 0.9f, 1);
-        wrapText(c.bio, cardX + 30, contentY - 210, cardW - 60, 22);
+        game.fontBold.setColor(0.7f, 0.85f, 1.0f, 1f);
+        game.fontBold.draw(game.batch, c.subtitle, textX, textY - 50);
 
-        game.fontBold.setColor(1, 0.92f, 0.23f, 1);
-        game.fontBold.draw(game.batch, "ABILITIES", cardX + 30, contentY - 320);
+        game.font.setColor(0.9f, 0.9f, 0.95f, 1f);
+        game.font.draw(game.batch, c.bio, textX, textY - 110, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
 
-        game.fontSmall.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.fontSmall.draw(game.batch, "Special: " + c.specialName, cardX + 30, contentY - 355);
-        game.fontSmall.setColor(0.7f, 0.7f, 0.7f, 1);
-        game.fontSmall.draw(game.batch, c.specialDesc, cardX + 30, contentY - 380);
+        float specY = textY - 240;
+        game.fontBold.setColor(1.0f, 0.85f, 0.2f, 1f);
+        game.fontBold.draw(game.batch, "SPECIAL: " + c.specialName, textX, specY);
 
-        game.fontSmall.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.fontSmall.draw(game.batch, "Super: " + c.superName, cardX + 30, contentY - 415);
-        game.fontSmall.setColor(0.7f, 0.7f, 0.7f, 1);
-        game.fontSmall.draw(game.batch, c.superDesc, cardX + 30, contentY - 440);
-
+        game.fontSmall.setColor(0.8f, 0.8f, 0.8f, 1f);
+        game.fontSmall.draw(game.batch, c.specialDesc, textX, specY - 35, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
         game.batch.end();
     }
 
     void drawEnemiesTab(float w, float h, float contentY, float contentH) {
-        float listW = w * 0.25f;
-        float cardX = w * 0.32f;
-        float cardW = w * 0.62f;
+        float cardX = w * 0.07f;
+        float cardW = w * 0.86f;
+        float cardY = contentY - contentH;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.07f, 0.07f, 0.14f, 1);
-        game.shapeRenderer.rect(w * 0.03f, contentY - contentH, listW, contentH);
+        game.shapeRenderer.setColor(0.08f, 0.05f, 0.08f, 0.92f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.2f, 0.2f, 0.3f, 1);
-        game.shapeRenderer.rect(w * 0.03f, contentY - contentH, listW, contentH);
+        game.shapeRenderer.setColor(1.0f, 0.2f, 0.35f, 0.9f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
-
-        float entryH = h * 0.1f;
-        float entryY = contentY - 20;
-        boolean unlocked = game.progress.isEnemyDefeated("wannacry");
-        boolean isSelected = (selectedEnemy == 0);
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(isSelected ? 0.5f : 0.3f, isSelected ? 0.1f : 0.05f, isSelected ? 0.15f : 0.05f, 1);
-        game.shapeRenderer.rect(w * 0.035f, entryY - entryH, listW - 0.01f, entryH);
-        game.shapeRenderer.end();
-
-        game.batch.begin();
-        game.fontSmall.setColor(unlocked ? 1 : 0.4f, unlocked ? 1 : 0.4f, unlocked ? 1 : 0.4f, 1);
-        game.fontSmall.draw(game.batch, unlocked ? "WannaCry" : "???", w * 0.05f, entryY - entryH/2 + 5);
-        game.fontSmall.setColor(0.5f, 0.5f, 0.5f, 1);
-        game.fontSmall.draw(game.batch, unlocked ? "Ransomware" : "Locked - Defeat to unlock", w * 0.05f, entryY - entryH/2 - 15);
-        game.batch.end();
-
-        if (unlocked && isEntryClicked(w * 0.035f, entryY - entryH, listW - 0.01f, entryH)) selectedEnemy = 0;
 
         EnemyData e = EnemyData.getWannaCry();
+        float spriteH = contentH * 0.85f;
+        float spriteW = spriteH;
+        float spriteX = cardX + 30;
+        float spriteY = cardY + contentH * 0.08f;
 
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.07f, 0.07f, 0.14f, 1);
-        game.shapeRenderer.rect(cardX, contentY - contentH, cardW, contentH);
-        game.shapeRenderer.end();
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(1, 0.09f, 0.27f, 1);
-        game.shapeRenderer.rect(cardX, contentY - contentH, cardW, contentH);
-        game.shapeRenderer.end();
-
-        if (unlocked) {
-            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            game.shapeRenderer.setColor(1, 0.09f, 0.27f, 1);
-            float cx = cardX + 90;
-            float cy = contentY - 90;
-            game.shapeRenderer.triangle(cx, cy - 60, cx + 40, cy + 20, cx - 40, cy + 20);
-            game.shapeRenderer.setColor(0.8f, 0, 0, 1);
-            game.shapeRenderer.rect(cx - 25, cy + 20, 50, 35);
-            game.shapeRenderer.end();
-
-            game.batch.begin();
-            game.fontBold.setColor(1, 0.09f, 0.27f, 1);
-            game.fontBold.draw(game.batch, e.name, cardX + 180, contentY - 50);
-            game.fontSmall.setColor(0.7f, 0.7f, 0.7f, 1);
-            game.fontSmall.draw(game.batch, e.type, cardX + 180, contentY - 80);
-
-            game.fontSmall.setColor(0.9f, 0.9f, 0.9f, 1);
-            wrapText(e.bio, cardX + 30, contentY - 180, cardW - 60, 22);
-
-            game.fontBold.setColor(1, 0.92f, 0.23f, 1);
-            game.fontBold.draw(game.batch, "REAL WORLD FACT", cardX + 30, contentY - 300);
-            game.fontSmall.setColor(0.7f, 0.7f, 0.7f, 1);
-            wrapText(e.realWorldFact, cardX + 30, contentY - 325, cardW - 60, 22);
-
-            game.fontBold.setColor(0, 1, 0.5f, 1);
-            game.fontBold.draw(game.batch, "WEAKNESS", cardX + 30, contentY - 420);
-            game.fontSmall.setColor(0.7f, 0.7f, 0.7f, 1);
-            game.fontSmall.draw(game.batch, e.weakness, cardX + 30, contentY - 445);
-            game.batch.end();
-        } else {
-            game.batch.begin();
-            game.fontBold.setColor(0.3f, 0.3f, 0.3f, 1);
-            game.fontBold.draw(game.batch, "???", cardX + cardW/2 - 30, contentY - contentH/2);
-            game.fontSmall.setColor(0.4f, 0.4f, 0.4f, 1);
-            game.fontSmall.draw(game.batch, "Defeat this enemy in combat to unlock its data.",
-                cardX + cardW/2 - 180, contentY - contentH/2 - 30);
-            game.batch.end();
+        game.batch.begin();
+        if (game.texEnemyIdle != null) {
+            game.batch.draw(game.texEnemyIdle, spriteX, spriteY, spriteW, spriteH);
         }
+        game.batch.end();
+
+        float textX = cardX + spriteW + 60;
+        float textY = contentY - 40;
+
+        game.batch.begin();
+        game.fontTitle.setColor(1.0f, 0.25f, 0.35f, 1f);
+        game.fontTitle.draw(game.batch, e.name, textX, textY);
+
+        game.fontBold.setColor(1.0f, 0.6f, 0.6f, 1f);
+        game.fontBold.draw(game.batch, "CLASSIFICATION: " + e.type.toUpperCase(), textX, textY - 50);
+
+        game.font.setColor(0.95f, 0.9f, 0.9f, 1f);
+        game.font.draw(game.batch, e.bio, textX, textY - 105, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
+
+        float weakY = textY - 220;
+        game.fontBold.setColor(1.0f, 0.85f, 0.2f, 1f);
+        game.fontBold.draw(game.batch, "TACTICAL COUNTER:", textX, weakY);
+
+        game.fontSmall.setColor(0.85f, 0.85f, 0.85f, 1f);
+        game.fontSmall.draw(game.batch, e.weakness, textX, weakY - 35, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
+
+        if (e.realWorldFact != null) {
+            float factY = weakY - 90;
+            game.fontBold.setColor(0.31f, 0.85f, 1.0f, 1f);
+            game.fontBold.draw(game.batch, "REAL WORLD INTEL:", textX, factY);
+            game.fontSmall.setColor(0.75f, 0.85f, 0.95f, 1f);
+            game.fontSmall.draw(game.batch, e.realWorldFact, textX, factY - 35, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
+        }
+        game.batch.end();
     }
 
     void drawCombosTab(float w, float h, float contentY, float contentH) {
-        CharacterData c = CharacterData.getTeamLead();
+        float cardX = w * 0.07f;
+        float cardW = w * 0.86f;
+        float cardY = contentY - contentH;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.07f, 0.07f, 0.14f, 1);
-        game.shapeRenderer.rect(w * 0.05f, contentY - contentH, w * 0.9f, contentH);
+        game.shapeRenderer.setColor(0.06f, 0.08f, 0.14f, 0.92f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.shapeRenderer.rect(w * 0.05f, contentY - contentH, w * 0.9f, contentH);
+        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 0.9f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
 
-        game.batch.begin();
-        game.fontBold.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.fontBold.draw(game.batch, c.name + " - COMBO LIST", w * 0.08f, contentY - 30);
+        CharacterData c = CharacterData.getTeamLead();
+        float y = contentY - 35;
 
-        float y = contentY - 80;
+        game.batch.begin();
+        game.fontBold.setColor(0.31f, 0.85f, 1.0f, 1f);
+        game.fontBold.draw(game.batch, c.name.toUpperCase() + " - COMMAND LIST", cardX + 30, y);
+        game.batch.end();
+
+        y -= 60;
         for (String combo : c.combos) {
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            game.shapeRenderer.setColor(0.1f, 0.2f, 0.3f, 1);
-            game.shapeRenderer.rect(w * 0.08f, y - 35, w * 0.84f, 50);
+            game.shapeRenderer.setColor(0.10f, 0.14f, 0.22f, 0.95f);
+            game.shapeRenderer.rect(cardX + 30, y - 42, cardW - 60, 52);
             game.shapeRenderer.end();
 
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
             game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 0.5f);
-            game.shapeRenderer.rect(w * 0.08f, y - 35, w * 0.84f, 50);
+            game.shapeRenderer.rect(cardX + 30, y - 42, cardW - 60, 52);
             game.shapeRenderer.end();
 
-            game.fontSmall.setColor(0.9f, 0.9f, 0.9f, 1);
-            game.fontSmall.draw(game.batch, combo, w * 0.1f, y - 5);
+            game.batch.begin();
+            game.font.setColor(1f, 1f, 1f, 1f);
+            game.font.draw(game.batch, combo, cardX + 50, y - 8);
+            game.batch.end();
+
             y -= 70;
         }
 
-        game.fontSmall.setColor(0.5f, 0.5f, 0.5f, 1);
-        game.fontSmall.draw(game.batch, "Tip: Chain light attacks within the combo window for maximum damage!",
-            w * 0.08f, contentY - contentH + 40);
+        game.batch.begin();
+        game.fontSmall.setColor(0.6f, 0.7f, 0.8f, 1f);
+        game.fontSmall.draw(game.batch, "Tip: Chain consecutive light attacks within the hit window for maximum combo multiplier!",
+            cardX + 30, cardY + 30);
         game.batch.end();
-    }
-
-    void wrapText(String text, float x, float startY, float maxWidth, float lineHeight) {
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        float y = startY;
-        for (String word : words) {
-            if (line.length() + word.length() > maxWidth / 8) {
-                game.fontSmall.draw(game.batch, line.toString(), x, y);
-                line = new StringBuilder(word + " ");
-                y -= lineHeight;
-            } else {
-                line.append(word).append(" ");
-            }
-        }
-        if (line.length() > 0) {
-            game.fontSmall.draw(game.batch, line.toString(), x, y);
-        }
     }
 
     void drawTab(float x, float y, float w, float h, String text, boolean active) {
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(active ? 0.2f : 0.1f, active ? 0.4f : 0.1f, active ? 0.5f : 0.2f, 1);
+        game.shapeRenderer.setColor(active ? 0.2f : 0.08f, active ? 0.45f : 0.12f, active ? 0.6f : 0.18f, 1);
         game.shapeRenderer.rect(x, y - h, w, h);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(active ? 0.5f : 0.2f, active ? 0.8f : 0.2f, 1, 1);
+        game.shapeRenderer.setColor(active ? 0.31f : 0.2f, active ? 0.85f : 0.3f, 1, 1);
         game.shapeRenderer.rect(x, y - h, w, h);
         game.shapeRenderer.end();
 
         game.batch.begin();
-        game.fontSmall.setColor(1, 1, 1, 1);
-        game.fontSmall.draw(game.batch, text, x + w/2 - 40, y - h/2 + 5);
+        game.fontBold.setColor(active ? 1f : 0.65f, active ? 1f : 0.65f, active ? 1f : 0.65f, 1);
+        game.drawTextCentered(game.fontBold, text, x + w / 2f, y - h / 2f);
         game.batch.end();
     }
 
@@ -307,36 +251,29 @@ public class GalleryScreen implements Screen {
         return mx >= x && mx <= x + w && my >= y - h && my <= y && Gdx.input.justTouched();
     }
 
-    boolean isEntryClicked(float x, float y, float w, float h) {
-        float mx = Gdx.input.getX();
-        float my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        return mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
-    }
-
     void drawButton(float x, float y, float bw, float bh, String text, int hoverCol, int col) {
         float mx = Gdx.input.getX();
         float my = Gdx.graphics.getHeight() - Gdx.input.getY();
         boolean hover = mx >= x && mx <= x + bw && my >= y && my <= y + bh;
 
+        int c = hover ? hoverCol : col;
+        float r = ((c >> 16) & 0xFF) / 255f;
+        float g = ((c >> 8) & 0xFF) / 255f;
+        float b = (c & 0xFF) / 255f;
+
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        if (hover) {
-            game.shapeRenderer.setColor(((hoverCol >> 16) & 0xFF)/255f,
-                ((hoverCol >> 8) & 0xFF)/255f, (hoverCol & 0xFF)/255f, 1);
-        } else {
-            game.shapeRenderer.setColor(((col >> 16) & 0xFF)/255f,
-                ((col >> 8) & 0xFF)/255f, (col & 0xFF)/255f, 1);
-        }
+        game.shapeRenderer.setColor(r, g, b, hover ? 1f : 0.8f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(1, 1, 1, 1);
+        game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, 1f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
         game.batch.begin();
-        game.font.setColor(1, 1, 1, 1);
-        game.font.draw(game.batch, text, x + bw/2 - 30, y + bh/2 + 10);
+        game.fontBold.setColor(1, 1, 1, 1);
+        game.drawTextCentered(game.fontBold, text, x + bw / 2f, y + bh / 2f);
         game.batch.end();
     }
 
@@ -346,8 +283,9 @@ public class GalleryScreen implements Screen {
         return mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
     }
 
-    @Override public void show() {}
-    @Override public void resize(int width, int height) {}
+    @Override public void resize(int width, int height) {
+        game.updateFontScales();
+    }
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}

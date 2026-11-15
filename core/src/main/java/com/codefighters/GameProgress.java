@@ -8,7 +8,7 @@ public class GameProgress {
     public Set<String> defeatedEnemies = new HashSet<>();
 
     // Currently selected character and enemy
-    public String selectedCharacter = "teamlead";
+    public String selectedCharacter = "cat";
     public String selectedEnemy = "wannacry";
 
     public boolean isEnemyDefeated(String enemyId) {

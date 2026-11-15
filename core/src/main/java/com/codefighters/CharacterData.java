@@ -25,11 +25,10 @@ public class CharacterData {
         this.unlocked = true;
     }
 
-    public static CharacterData getTeamLead() {
-        CharacterData c = new CharacterData("teamlead", "Team Lead", "Game Architect");
+    public static CharacterData getCat() {
+        CharacterData c = new CharacterData("cat", "Cat", "Game Architect");
         c.bio = "The visionary behind the Code Fighters project. "
-            + "Responsible for game design, mechanics, and overall vision. "
-            + "Armed with design documents and project management tools.";
+            + "Armed with design documents, rapid reflexes, and cyber defense protocols.";
         c.specialName = "Scope Lock";
         c.specialDesc = "Freezes the enemy in a bounding box of constraints, dealing damage over time.";
         c.superName = "Gold Master";
@@ -42,5 +41,9 @@ public class CharacterData {
         c.secondaryColor = 0x1565c0;
         c.accentColor = 0xffeb3b;
         return c;
+    }
+
+    public static CharacterData getTeamLead() {
+        return getCat();
     }
 }

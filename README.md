@@ -6,7 +6,7 @@ A security awareness arcade 2D fighting game built with **libGDX** and **Android
 
 ## Game Concept
 
-In a digital world where malware threatens systems worldwide, software developers step up as the last line of defense. Play as the **Team Lead** and fight against infamous malware like **WannaCry** in fast-paced 2D combat.
+In a digital world where malware threatens systems worldwide, software developers step up as the last line of defense. Play as **Cat** and fight against infamous malware like **WannaCry** in fast-paced 2D combat.
 
 Each character and enemy is designed around real-world software development and cybersecurity concepts, making this both a game and an educational tool.
 
@@ -71,7 +71,7 @@ Each character and enemy is designed around real-world software development and 
 ## Current Build
 
 ### Playable Characters
-- **Team Lead (You)** - Balanced fighter with combo attacks and projectile special
+- **Cat (You)** - Balanced fighter with combo attacks and projectile special
 
 ### Enemies
 - **WannaCry** - Aggressive ransomware with glitch effects and melee attacks
