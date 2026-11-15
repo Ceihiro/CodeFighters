@@ -40,24 +40,20 @@ public class FightScreen implements Screen {
     int enemyInvuln = 0;
     int enemyAttackTimer = 60;
 
-    // Projectiles
     List<Projectile> projectiles = new ArrayList<>();
-
-    // Particles
     List<Particle> particles = new ArrayList<>();
 
-    // Combo display
     int comboCount = 0;
     int comboTimer = 0;
     float comboX = 0, comboY = 0;
 
-    // Hit pause
     int hitPause = 0;
     int frame = 0;
 
-    // Touch buttons
-    boolean touchLeft = false, touchRight = false;
-    boolean touchAttack = false, touchSpecial = false, touchBlock = false;
+    // Touch button bounds
+    float btnLeftX, btnLeftY, btnRightX, btnRightY, btnAtkX, btnAtkY;
+    float btnSplX, btnSplY, btnBlkX, btnBlkY;
+    float btnSize;
 
     public FightScreen(final CodeFightersGame game) {
         this.game = game;
@@ -87,19 +83,61 @@ public class FightScreen implements Screen {
 
     void updateFight() {
         float w = Gdx.graphics.getWidth();
-        float groundY = Gdx.graphics.getHeight() * 0.65f;
+        float h = Gdx.graphics.getHeight();
+        float groundY = h * 0.65f;
         playerY = groundY;
         enemyY = groundY;
 
-        // Input
-        boolean left = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.LEFT) || touchLeft;
-        boolean right = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT) || touchRight;
-        boolean attack = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.A) || touchAttack;
-        boolean special = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.S) || touchSpecial;
-        boolean block = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D) || touchBlock;
+        // Calculate touch button positions
+        btnSize = h * 0.1f;
+        float padY = h * 0.08f;
+        btnLeftX = w * 0.08f; btnLeftY = padY;
+        btnRightX = w * 0.18f; btnRightY = padY;
+        btnAtkX = w * 0.72f; btnAtkY = padY;
+        btnSplX = w * 0.82f; btnSplY = padY + btnSize * 0.5f;
+        btnBlkX = w * 0.90f; btnBlkY = padY;
 
-        if (attack) touchAttack = false;
-        if (special) touchSpecial = false;
+        // Handle touch input for on-screen buttons
+        boolean touchLeft = false, touchRight = false;
+        boolean touchAttack = false, touchSpecial = false, touchBlock = false;
+
+        if (Gdx.input.isTouched()) {
+            float tx = Gdx.input.getX();
+            float ty = Gdx.graphics.getHeight() - Gdx.input.getY();
+
+            if (tx >= btnLeftX && tx <= btnLeftX + btnSize && ty >= btnLeftY && ty <= btnLeftY + btnSize) {
+                touchLeft = true;
+            }
+            if (tx >= btnRightX && tx <= btnRightX + btnSize && ty >= btnRightY && ty <= btnRightY + btnSize) {
+                touchRight = true;
+            }
+            if (tx >= btnAtkX && tx <= btnAtkX + btnSize && ty >= btnAtkY && ty <= btnAtkY + btnSize) {
+                touchAttack = true;
+            }
+            if (tx >= btnSplX && tx <= btnSplX + btnSize && ty >= btnSplY && ty <= btnSplY + btnSize) {
+                touchSpecial = true;
+            }
+            if (tx >= btnBlkX && tx <= btnBlkX + btnSize && ty >= btnBlkY && ty <= btnBlkY + btnSize) {
+                touchBlock = true;
+            }
+        }
+
+        // Input - combine keyboard and touch
+        boolean left = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.LEFT) || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A) || touchLeft;
+        boolean right = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT) || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D) || touchRight;
+        boolean attack = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.J) || (touchAttack && !attackJustPressed);
+        boolean special = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.K) || (touchSpecial && !specialJustPressed);
+        boolean block = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.L) || touchBlock;
+
+        // Track touch "just pressed" state
+        if (touchAttack && !attackWasPressed) {
+            attack = true;
+        }
+        if (touchSpecial && !specialWasPressed) {
+            special = true;
+        }
+        attackJustPressed = touchAttack;
+        specialJustPressed = touchSpecial;
 
         playerBlock = block && !playerState.startsWith("ATTACK") && !playerState.equals("SPECIAL") && !playerState.equals("HIT");
 
@@ -272,6 +310,12 @@ public class FightScreen implements Screen {
         }
     }
 
+    // Touch state tracking
+    boolean attackJustPressed = false;
+    boolean specialJustPressed = false;
+    boolean attackWasPressed = false;
+    boolean specialWasPressed = false;
+
     void drawFight() {
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
@@ -285,7 +329,6 @@ public class FightScreen implements Screen {
         game.shapeRenderer.setColor(0.03f, 0.03f, 0.06f, 1);
         game.shapeRenderer.rect(0, 0, w, h);
 
-        // Server racks
         game.shapeRenderer.setColor(0.06f, 0.06f, 0.12f, 1);
         for (int i = 0; i < 12; i++) {
             float rx = w * 0.05f + i * (w * 0.08f);
@@ -397,22 +440,17 @@ public class FightScreen implements Screen {
 
     void drawPlayer(float x, float y, float scale) {
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        // Body
         game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
         game.shapeRenderer.rect(x - 25*scale, y - 70*scale, 50*scale, 50*scale);
-        // Head
         game.shapeRenderer.setColor(1, 0.8f, 0.67f, 1);
         game.shapeRenderer.rect(x - 18*scale, y - 100*scale, 36*scale, 35*scale);
-        // Headphones
         game.shapeRenderer.setColor(0.3f, 0.3f, 0.3f, 1);
         game.shapeRenderer.rect(x - 22*scale, y - 105*scale, 44*scale, 8*scale);
-        // Legs
         game.shapeRenderer.setColor(0.08f, 0.35f, 0.75f, 1);
         game.shapeRenderer.rect(x - 18*scale, y - 20*scale, 15*scale, 25*scale);
         game.shapeRenderer.rect(x + 3*scale, y - 20*scale, 15*scale, 25*scale);
         game.shapeRenderer.end();
 
-        // Attack arm
         if (playerState.startsWith("ATTACK")) {
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
@@ -420,7 +458,6 @@ public class FightScreen implements Screen {
             game.shapeRenderer.end();
         }
 
-        // Block shield
         if (playerBlock) {
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             game.shapeRenderer.setColor(1, 0.92f, 0.23f, 0.5f);
@@ -435,17 +472,14 @@ public class FightScreen implements Screen {
         x += glitchX; y += glitchY;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        // Body
         game.shapeRenderer.setColor(1, 0.09f, 0.27f, 0.9f);
         game.shapeRenderer.triangle(
             x, y - 90*scale,
             x + 30*scale, y - 30*scale,
             x - 30*scale, y - 30*scale
         );
-        // Lock head
         game.shapeRenderer.setColor(0.8f, 0, 0, 1);
         game.shapeRenderer.rect(x - 20*scale, y - 130*scale, 40*scale, 35*scale);
-        // Keyhole
         game.shapeRenderer.setColor(1, 0.92f, 0.23f, 1);
         game.shapeRenderer.circle(x, y - 115*scale, 5*scale, 12);
         game.shapeRenderer.rect(x - 3*scale, y - 115*scale, 6*scale, 12*scale);
@@ -516,7 +550,7 @@ public class FightScreen implements Screen {
 
         game.batch.begin();
         game.font.setColor(1, 1, 1, 1);
-        game.font.draw(game.batch, text, x + bw/2 - 40, y + bh/2 + 10);
+        game.font.draw(game.batch, text, x + bw/2 - 30, y + bh/2 + 10);
         game.batch.end();
     }
 
@@ -546,7 +580,6 @@ public class FightScreen implements Screen {
     @Override public void hide() {}
     @Override public void dispose() {}
 
-    // Inner classes
     class Hitbox {
         float x, y, w, h;
         int damage, hitstun;
