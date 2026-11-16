@@ -96,6 +96,8 @@ public class FightScreen implements Screen {
     Hitbox p2Hitbox = null;
     // AI specific
     int p2AttackCooldown = 50;
+    int p2TurnDelay = 0;
+    float p1PrevSide = -1f;
     // Dash system P2
     float p2LastLeftTapTime = -10f;
     float p2LastRightTapTime = -10f;
@@ -109,6 +111,8 @@ public class FightScreen implements Screen {
     List<Particle> particles = new ArrayList<>();
     List<FloatingNotice> notices = new ArrayList<>();
     List<GhostTrail> ghostTrails = new ArrayList<>();
+    List<VisualEffect> visualEffects = new ArrayList<>();
+    int koFlashTimer = 0;
 
     int hitPause = 0;
     int frame = 0;
@@ -161,8 +165,20 @@ public class FightScreen implements Screen {
         p2Y = groundY;
         p1VX = 0; p2VX = 0;
 
-        p1HP = 100; p1DisplayHP = 100f;
-        p2HP = 100; p2DisplayHP = 100f;
+        p1HP = 100; p1MaxHP = 100; p1DisplayHP = 100f;
+        String curDiff = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+        if (mode == GameMode.ARCADE) {
+            if (curDiff.equals("EASY")) {
+                p2MaxHP = 75;
+            } else if (curDiff.equals("HARD")) {
+                p2MaxHP = 120;
+            } else {
+                p2MaxHP = 100;
+            }
+        } else {
+            p2MaxHP = 100;
+        }
+        p2HP = p2MaxHP; p2DisplayHP = (float) p2MaxHP;
         if (isNewMatch) {
             p1SuperGauge = 20f;
             p2SuperGauge = 20f;
@@ -174,11 +190,15 @@ public class FightScreen implements Screen {
         p2State = "IDLE"; p2AnimTimer = 0; p2InvincibleTimer = 0; p2Block = false; p2Flash = 0;
         p2Facing = -1f; p2ComboCount = 0; p2Hitbox = null; p2IsDashing = false; p2DashCooldown = 0f;
         p2AttackCooldown = 45;
+        p2TurnDelay = 0;
+        p1PrevSide = Math.signum(p1X - p2X);
 
         projectiles.clear();
         particles.clear();
         notices.clear();
         ghostTrails.clear();
+        visualEffects.clear();
+        koFlashTimer = 0;
 
         roundTimer = 99.0f;
         matchState = MatchState.ROUND_INTRO;
@@ -279,6 +299,9 @@ public class FightScreen implements Screen {
 
         if (matchState == MatchState.ROUND_OVER) {
             bannerTimer += delta;
+            if (p1HP > p2HP && frame % 4 == 0) {
+                spawnConfetti(stageWidth, h);
+            }
             updateCamera(w, h);
             drawFightWorld(h);
             drawFightHUD(w, h);
@@ -413,12 +436,16 @@ public class FightScreen implements Screen {
 
         // Auto face each other when neutral (with deadzone so crossing over doesn't cause rapid flipping)
         if (!p1IsDashing && (p1State.equals("IDLE") || p1State.equals("WALK"))) {
-            if (p1X < p2X - 12f) p1Facing = 1f;
-            else if (p1X > p2X + 12f) p1Facing = -1f;
+            if (p1X < p2X - 16f) p1Facing = 1f;
+            else if (p1X > p2X + 16f) p1Facing = -1f;
         }
         if (!p2IsDashing && (p2State.equals("IDLE") || p2State.equals("WALK"))) {
-            if (p2X < p1X - 12f) p2Facing = 1f;
-            else if (p2X > p1X + 12f) p2Facing = -1f;
+            if (p2TurnDelay > 0) {
+                p2TurnDelay--; // Delay turning around after being crossed up
+            } else {
+                if (p2X < p1X - 16f) p2Facing = 1f;
+                else if (p2X > p1X + 16f) p2Facing = -1f;
+            }
         }
 
         float charW = h * 0.52f;
@@ -430,12 +457,23 @@ public class FightScreen implements Screen {
         if (mode == GameMode.VERSUS) {
             processPlayer2VersusInput(w, h, delta, charW, hitH);
         } else {
-            processEnemyAI(charW, hitH);
+            processEnemyAI(delta, charW, hitH);
         }
 
         // Apply velocities
         p1X += p1VX;
         p2X += p2VX;
+
+        // Cross-Up Detection: check if player crossed from one side of opponent to the other
+        float curSide = Math.signum(p1X - p2X);
+        if (curSide != 0 && p1PrevSide != 0 && curSide != p1PrevSide) {
+            if (p1IsDashing || Math.abs(p1VX) > 2f) {
+                addNotice("CROSS-UP!", p1X, p1Y + charW * 0.85f, 0x00e5ff);
+                spawnParticles(p1X, p1Y + charW * 0.4f, 0x00e5ff, 8);
+                p2TurnDelay = 14; // AI pauses 14 frames before turning to face player
+            }
+            p1PrevSide = curSide;
+        }
 
         // Stage bounds (absolute physical walls of the arena)
         float stageLeft = charW * 0.25f;
@@ -448,8 +486,13 @@ public class FightScreen implements Screen {
         while (pit.hasNext()) {
             Projectile p = pit.next();
             p.x += p.vx;
+            // Spawn trailing particles
+            int trailColor = (p.owner == 1) ? 0x00e5ff : 0xff1744;
+            if (frame % 2 == 0) {
+                spawnParticles(p.x - Math.signum(p.vx) * charW * 0.1f, p.y, trailColor, 1);
+            }
             // Check collision with opponent
-            boolean isP1Bullet = (p.vx > 0 && p1Facing > 0) || (p.vx < 0 && p1Facing < 0);
+            boolean isP1Bullet = (p.owner == 1);
             float targetX = isP1Bullet ? p2X : p1X;
             float targetY = isP1Bullet ? p2Y : p1Y;
             boolean targetInvincible = isP1Bullet ? (p2InvincibleTimer > 0) : (p1InvincibleTimer > 0);
@@ -461,25 +504,41 @@ public class FightScreen implements Screen {
                     if (targetBlock) {
                         dmg = (int)(dmg * 0.3f);
                         game.playSound(game.sndBlockShield, 0.7f * game.settingsScreen.sfxVolume);
+                        spawnBlockSpark(targetX, targetY + charW * 0.4f);
                         spawnParticles(targetX, targetY + charW * 0.4f, 0xffff00, 8);
                         addNotice("BLOCKED", targetX, targetY + charW * 0.8f, 0xffff00);
+                        if (isP1Bullet) {
+                            p2SuperGauge = Math.min(100f, p2SuperGauge + 5f);
+                        } else {
+                            p1SuperGauge = Math.min(100f, p1SuperGauge + 5f);
+                        }
                     } else {
                         game.playSound(game.sndDamageGlitch, 0.8f * game.settingsScreen.sfxVolume);
-                        spawnParticles(targetX, targetY + charW * 0.4f, 0x00e5ff, 14);
+                        int pColor = isP1Bullet ? 0x00e5ff : 0xff1744;
+                        spawnHitSpark(targetX, targetY + charW * 0.4f, pColor);
+                        if (!isP1Bullet) {
+                            spawnEncryptBurst(targetX, targetY + charW * 0.4f);
+                        }
+                        spawnParticles(targetX, targetY + charW * 0.4f, pColor, 14);
                         hitPause = 7;
                         shakeTimer = 9;
-                        addNotice("PUNISH!", targetX, targetY + charW * 0.8f, 0x00e5ff);
-                    }
-
-                    if (isP1Bullet) {
-                        p2HP -= dmg;
-                        p2State = "HIT"; p2AnimTimer = 0; p2InvincibleTimer = 14; p2Flash = 10;
-                        p1SuperGauge = Math.min(100f, p1SuperGauge + 15f);
-                        totalDamageDealtP1 += dmg;
-                    } else {
-                        p1HP -= dmg;
-                        p1State = "HIT"; p1AnimTimer = 0; p1InvincibleTimer = 14; p1Flash = 10;
-                        p2SuperGauge = Math.min(100f, p2SuperGauge + 15f);
+                        addNotice("PUNISH!", targetX, targetY + charW * 0.8f, pColor);
+                        if (isP1Bullet) {
+                            p2HP -= dmg;
+                            p2State = "HIT"; p2AnimTimer = 0; p2InvincibleTimer = 14; p2Flash = 10;
+                            String d = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+                            p1SuperGauge = Math.min(100f, p1SuperGauge + (d.equals("EASY") ? 20f : 15f));
+                            totalDamageDealtP1 += dmg;
+                        } else {
+                            if (mode == GameMode.ARCADE) {
+                                String d = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+                                if (d.equals("EASY")) dmg = Math.max(1, (int)(dmg * 0.60f));
+                                else if (d.equals("HARD")) dmg = (int)(dmg * 1.25f);
+                            }
+                            p1HP -= dmg;
+                            p1State = "HIT"; p1AnimTimer = 0; p1InvincibleTimer = 14; p1Flash = 10;
+                            p2SuperGauge = Math.min(100f, p2SuperGauge + 15f);
+                        }
                     }
                 }
                 p.active = false;
@@ -500,10 +559,16 @@ public class FightScreen implements Screen {
                 if (p2Block) {
                     dmg = (int) (dmg * 0.3f);
                     game.playSound(game.sndBlockShield, 0.65f * game.settingsScreen.sfxVolume);
+                    spawnBlockSpark(p2X, p2Y + charW * 0.45f);
                     spawnParticles(p2X, p2Y + charW * 0.45f, 0xffff00, 6);
                     addNotice("BLOCKED", p2X, p2Y + charW * 0.85f, 0xffff00);
+                    p2SuperGauge = Math.min(100f, p2SuperGauge + 5f);
                 } else {
                     game.playSound(game.sndHitPunch, 0.85f * game.settingsScreen.sfxVolume);
+                    spawnHitSpark(p2X, p2Y + charW * 0.45f, 0x00bcd4);
+                    if (p1State.equals("DASH_ATTACK") || p1ComboCount > 2) {
+                        spawnKnockbackLines(p2X, p2Y + charW * 0.45f, p1Facing);
+                    }
                     spawnParticles(p2X, p2Y + charW * 0.45f, 0x00bcd4, 12);
                     hitPause = p1State.equals("DASH_ATTACK") ? 8 : 6;
                     shakeTimer = p1State.equals("DASH_ATTACK") ? 10 : 7;
@@ -518,7 +583,8 @@ public class FightScreen implements Screen {
                 }
                 p2HP -= dmg;
                 totalDamageDealtP1 += dmg;
-                p1SuperGauge = Math.min(100f, p1SuperGauge + 8f);
+                String diffP1 = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+                p1SuperGauge = Math.min(100f, p1SuperGauge + (diffP1.equals("EASY") ? 12f : 8f));
                 p2State = "HIT"; p2AnimTimer = 0; p2InvincibleTimer = p1Hitbox.hitstun; p2Flash = 8;
                 p1Hitbox = null;
             }
@@ -534,13 +600,24 @@ public class FightScreen implements Screen {
             if (p2Hitbox.x < playerRight && p2Hitbox.x + p2Hitbox.w > playerLeft &&
                 p2Hitbox.y < playerTop && p2Hitbox.y + p2Hitbox.h > playerBottom) {
                 int dmg = p2Hitbox.damage;
+                if (mode == GameMode.ARCADE) {
+                    String d = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+                    if (d.equals("EASY")) dmg = Math.max(1, (int)(dmg * 0.55f));
+                    else if (d.equals("HARD")) dmg = (int)(dmg * 1.25f);
+                }
                 if (p1Block) {
                     dmg = (int) (dmg * 0.3f);
                     game.playSound(game.sndBlockShield, 0.65f * game.settingsScreen.sfxVolume);
+                    spawnBlockSpark(p1X, p1Y + charW * 0.45f);
                     spawnParticles(p1X, p1Y + charW * 0.45f, 0xffff00, 6);
                     addNotice("BLOCKED", p1X, p1Y + charW * 0.85f, 0xffff00);
+                    p1SuperGauge = Math.min(100f, p1SuperGauge + 5f);
                 } else {
                     game.playSound(game.sndHitPunch, 0.85f * game.settingsScreen.sfxVolume);
+                    spawnHitSpark(p1X, p1Y + charW * 0.45f, 0xff1744);
+                    if (p2State.equals("DASH_ATTACK") || p2ComboCount > 2) {
+                        spawnKnockbackLines(p1X, p1Y + charW * 0.45f, p2Facing);
+                    }
                     spawnParticles(p1X, p1Y + charW * 0.45f, 0xff1744, 12);
                     hitPause = p2State.equals("DASH_ATTACK") ? 8 : 6;
                     shakeTimer = 8;
@@ -563,6 +640,15 @@ public class FightScreen implements Screen {
             Particle p = partIt.next();
             p.x += p.vx; p.y += p.vy; p.vy += 0.15f; p.life--;
             if (p.life <= 0) partIt.remove();
+        }
+
+        Iterator<VisualEffect> veIt = visualEffects.iterator();
+        while (veIt.hasNext()) {
+            VisualEffect ve = veIt.next();
+            ve.x += ve.vx;
+            ve.y += ve.vy;
+            ve.life--;
+            if (ve.life <= 0) veIt.remove();
         }
 
         Iterator<GhostTrail> git = ghostTrails.iterator();
@@ -595,6 +681,10 @@ public class FightScreen implements Screen {
             }
             matchState = MatchState.ROUND_OVER;
             bannerTimer = 0f;
+            koFlashTimer = 14;
+            if (p2HP <= 0) {
+                spawnEncryptBurst(p2X, p2Y + charW * 0.45f);
+            }
             game.playSound(game.sndAnnouncerKo, 1.0f);
             if (mode == GameMode.ARCADE && p2HP <= 0) {
                 game.playSound(game.sndDamageWannacry, 1.0f);
@@ -756,8 +846,9 @@ public class FightScreen implements Screen {
             if (p1AnimTimer == 10) {
                 float projX = p1X + p1Facing * (charW * 0.35f);
                 float projY = p1Y + charW * 0.35f;
-                projectiles.add(new Projectile(projX, projY, p1Facing * 11f, 18));
+                projectiles.add(new Projectile(projX, projY, p1Facing * 11f, 18, 1));
                 game.playSound(game.sndSpecialFire, 0.8f * game.settingsScreen.sfxVolume);
+                spawnHitSpark(projX, projY, 0x00bcd4);
                 p1VX = -p1Facing * 4f;
             }
             if (p1AnimTimer > 28) { p1State = "IDLE"; p1AnimTimer = 0; }
@@ -786,17 +877,21 @@ public class FightScreen implements Screen {
     void triggerP1Dash(boolean forward) {
         p1IsDashing = true;
         p1DashForward = forward;
-        p1DashCooldown = 0.5f;
+        p1DashCooldown = 0.45f;
         if (forward) {
+            // Forward cross-up dash: quick phase through opponent
             p1DashTimer = 0.25f;
-            p1VX = p1Facing * 9.5f;
+            p1VX = p1Facing * 11.0f;
+            p1InvincibleTimer = 14; // i-frames allow slipping past enemy attacks
         } else {
-            // Backdash has 3-4 i-frames
+            // Backdash has 12 i-frames
             p1DashTimer = 0.20f;
-            p1VX = -p1Facing * 8.0f;
-            p1InvincibleTimer = 10;
+            p1VX = -p1Facing * 8.5f;
+            p1InvincibleTimer = 12;
         }
         spawnParticles(p1X, p1Y + 10, 0x00bcd4, 6);
+        spawnDashDust(p1X, groundY + 12f, p1Facing);
+        game.playSound(game.sndDashWhoosh, 0.75f * game.settingsScreen.sfxVolume);
     }
 
     void processPlayer2VersusInput(float w, float h, float delta, float charW, float hitH) {
@@ -928,8 +1023,9 @@ public class FightScreen implements Screen {
             if (p2AnimTimer == 10) {
                 float projX = p2X + p2Facing * (charW * 0.35f);
                 float projY = p2Y + charW * 0.35f;
-                projectiles.add(new Projectile(projX, projY, p2Facing * 11f, 18));
+                projectiles.add(new Projectile(projX, projY, p2Facing * 11f, 18, 2));
                 game.playSound(game.sndSpecialFire, 0.8f * game.settingsScreen.sfxVolume);
+                spawnHitSpark(projX, projY, 0xff1744);
                 p2VX = -p2Facing * 4f;
             }
             if (p2AnimTimer > 28) { p2State = "IDLE"; p2AnimTimer = 0; }
@@ -957,78 +1053,334 @@ public class FightScreen implements Screen {
     void triggerP2Dash(boolean forward) {
         p2IsDashing = true;
         p2DashForward = forward;
-        p2DashCooldown = 0.5f;
+        p2DashCooldown = 0.45f;
         if (forward) {
+            // Forward cross-up dash
             p2DashTimer = 0.25f;
-            p2VX = p2Facing * 9.5f;
+            p2VX = p2Facing * 11.0f;
+            p2InvincibleTimer = 14;
         } else {
             p2DashTimer = 0.20f;
-            p2VX = -p2Facing * 8.0f;
-            p2InvincibleTimer = 10;
+            p2VX = -p2Facing * 8.5f;
+            p2InvincibleTimer = 12;
         }
         spawnParticles(p2X, p2Y + 10, 0xff9800, 6);
+        spawnDashDust(p2X, groundY + 12f, p2Facing);
+        game.playSound(game.sndDashWhoosh, 0.75f * game.settingsScreen.sfxVolume);
     }
 
-    void processEnemyAI(float charW, float hitH) {
+    void processEnemyAI(float delta, float charW, float hitH) {
         p2AttackCooldown--;
         float distToPlayer = p1X - p2X;
         float absDist = Math.abs(distToPlayer);
-        if (distToPlayer > 12f) p2Facing = 1f;
-        else if (distToPlayer < -12f) p2Facing = -1f;
+
+        // Turn to face player when neutral or walking
+        if (!p2IsDashing && !p2State.startsWith("ATTACK") && !p2State.startsWith("SPECIAL") && !p2State.equals("HIT")) {
+            if (p2TurnDelay > 0) {
+                // In cross-up delay: do not face player yet
+            } else {
+                if (distToPlayer > 16f) p2Facing = 1f;
+                else if (distToPlayer < -16f) p2Facing = -1f;
+            }
+        }
+
+        String diff = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+        boolean isEasy = diff.equals("EASY");
+        boolean isHard = diff.equals("HARD");
+
+        // Passive mana trickle (scaled by difficulty)
+        float manaTrickle = isEasy ? 0.015f : (isHard ? 0.065f : 0.040f);
+        p2SuperGauge = Math.min(100f, p2SuperGauge + manaTrickle);
 
         // AI Difficulty adjustments
         float aiSpeed;
         int attackRate;
-        String diff = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
-        switch (diff) {
-            case "EASY":
-                aiSpeed = 1.8f;
-                attackRate = 70;
-                break;
-            case "HARD":
-                aiSpeed = 3.2f;
-                attackRate = 35;
-                break;
-            default:
-                aiSpeed = 2.4f;
-                attackRate = 50;
-                break;
+        float dodgeChance;
+        float blockChance;
+        if (isEasy) {
+            aiSpeed = 1.4f;
+            attackRate = 85;
+            dodgeChance = 0.12f;
+            blockChance = 0.18f;
+        } else if (isHard) {
+            aiSpeed = 3.3f;
+            attackRate = 28;
+            dodgeChance = 0.80f;
+            blockChance = 0.85f;
+        } else { // NORMAL
+            aiSpeed = 2.4f;
+            attackRate = 48;
+            dodgeChance = 0.45f;
+            blockChance = 0.50f;
         }
 
-        if (p2State.equals("IDLE") || p2State.equals("WALK")) {
-            if (absDist > charW * 0.36f) {
-                p2VX = p2Facing * aiSpeed;
-                p2State = "WALK";
-                if (p2IdleFrame % 14 == 0) spawnParticles(p2X, p2Y + 4, 0xff1744, 2);
-            } else {
-                p2VX = 0;
-                p2State = "IDLE";
-                if (p2AttackCooldown <= 0) {
-                    p2State = "ATTACK";
-                    p2AnimTimer = 0;
-                    p2AttackCooldown = attackRate + rand.nextInt(25);
+        // --- 1. HANDLE ACTIVE DASHING & ATTACK STATES ---
+        if (p2IsDashing) {
+            p2DashTimer -= delta;
+            if (frame % 3 == 0) {
+                ghostTrails.add(new GhostTrail(p2X, p2Y, charW, charW, p2Facing, 0xff1744, 12));
+                if (game.texFxDashTrail != null) {
+                    visualEffects.add(new VisualEffect(game.texFxDashTrail, p2X, p2Y + charW * 0.4f, charW * 0.5f, charW * 0.5f, 0, 0, 8, 0xff1744));
                 }
             }
-        } else if (p2State.equals("ATTACK")) {
+            // Dash attack punish if close to player while dashing forward
+            if (p2DashForward && absDist < charW * 0.48f) {
+                p2IsDashing = false;
+                p2State = "DASH_ATTACK";
+                p2AnimTimer = 0;
+                float hitX = (p2Facing > 0) ? p2X + charW * 0.2f : p2X - charW * 0.55f;
+                p2Hitbox = new Hitbox(hitX, p2Y, charW * 0.55f, hitH, 16, 22);
+                p2VX = p2Facing * 7.5f;
+                game.playSound(game.sndHitPunch, 0.9f * game.settingsScreen.sfxVolume);
+                return;
+            }
+            if (p2DashTimer <= 0) {
+                p2IsDashing = false;
+                p2VX = 0;
+                p2State = "IDLE";
+            }
+            return;
+        }
+
+        if (p2State.equals("DASH_ATTACK")) {
             p2AnimTimer++;
-            if (p2AnimTimer >= 10 && p2AnimTimer <= 16) {
-                p2VX = p2Facing * 3.2f;
+            p2VX *= 0.88f;
+            if (p2AnimTimer > 18) {
+                p2Hitbox = null;
+                p2State = "IDLE";
+                p2AnimTimer = 0;
+            }
+            return;
+        }
+
+        // --- SPECIAL: SINGLE CODE BLAST ---
+        if (p2State.equals("SPECIAL")) {
+            p2AnimTimer++;
+            p2VX = 0;
+            if (p2AnimTimer == 10) {
+                float projX = p2X + p2Facing * (charW * 0.35f);
+                float projY = p2Y + charW * 0.35f;
+                projectiles.add(new Projectile(projX, projY, p2Facing * 11.5f, 18, 2));
+                game.playSound(game.sndSpecialFire, 0.85f * game.settingsScreen.sfxVolume);
+                spawnParticles(projX, projY, 0xff1744, 10);
+                spawnHitSpark(projX, projY, 0xff1744);
+                p2VX = -p2Facing * 4f; // Recoil
+                addNotice("CODE BLAST!", p2X, p2Y + charW * 0.85f, 0xff1744);
+            }
+            if (p2AnimTimer > 28) {
+                p2State = "IDLE";
+                p2AnimTimer = 0;
+            }
+            return;
+        }
+
+        // --- SPECIAL: 3 CODE BLAST BARRAGE ---
+        if (p2State.equals("SPECIAL_3X")) {
+            p2AnimTimer++;
+            p2VX = 0;
+            float projX = p2X + p2Facing * (charW * 0.35f);
+            float projY = p2Y + charW * 0.35f;
+
+            // Malicious energy sparks while charging
+            if (p2AnimTimer < 10 && p2AnimTimer % 3 == 0) {
+                spawnParticles(p2X + (rand.nextFloat() - 0.5f) * 30f, p2Y + charW * 0.35f, 0xff1744, 3);
+            }
+
+            // 1st blast at frame 10
+            if (p2AnimTimer == 10) {
+                projectiles.add(new Projectile(projX, projY, p2Facing * 11f, 14, 2));
+                game.playSound(game.sndSpecialFire, 0.8f * game.settingsScreen.sfxVolume);
+                spawnParticles(projX, projY, 0xff1744, 8);
+                spawnHitSpark(projX, projY, 0xff1744);
+                p2VX = -p2Facing * 3f;
+                addNotice("3x CODE BLAST!", p2X, p2Y + charW * 0.85f, 0xff1744);
+            }
+            // 2nd blast at frame 18
+            else if (p2AnimTimer == 18) {
+                projectiles.add(new Projectile(projX, projY + 10f, p2Facing * 12.5f, 14, 2));
+                game.playSound(game.sndSpecialFire, 0.85f * game.settingsScreen.sfxVolume);
+                spawnParticles(projX, projY + 10f, 0xff1744, 8);
+                spawnHitSpark(projX, projY + 10f, 0xff1744);
+                p2VX = -p2Facing * 3.5f;
+            }
+            // 3rd blast at frame 26 (accelerated finisher)
+            else if (p2AnimTimer == 26) {
+                projectiles.add(new Projectile(projX, projY - 10f, p2Facing * 14f, 16, 2));
+                game.playSound(game.sndSpecialFire, 0.95f * game.settingsScreen.sfxVolume);
+                spawnParticles(projX, projY - 10f, 0xff1744, 12);
+                spawnEncryptBurst(projX, projY);
+                p2VX = -p2Facing * 4.5f;
+                shakeTimer = 7;
+            }
+
+            if (p2AnimTimer > 36) {
+                p2State = "IDLE";
+                p2AnimTimer = 0;
+            }
+            return;
+        }
+
+        // --- COMBO ATTACK STATES ---
+        if (p2State.startsWith("ATTACK")) {
+            p2AnimTimer++;
+            if (p2AnimTimer <= 6) {
+                p2VX = p2Facing * 2.8f;
             } else {
                 p2VX = 0;
             }
 
-            if (p2AnimTimer == 15) {
+            if (p2AnimTimer == 6) {
                 float hitX = p2Facing > 0 ? p2X + charW * 0.2f : p2X - charW * 0.5f;
-                p2Hitbox = new Hitbox(hitX, p2Y, charW * 0.45f, hitH, 10, 20);
+                int dmg = p2State.equals("ATTACK2") ? 11 : (p2State.equals("ATTACK3") ? 15 : 8);
+                p2Hitbox = new Hitbox(hitX, p2Y, charW * 0.45f, hitH, dmg, 18);
                 float masterSfx = (game.settingsScreen != null) ? game.settingsScreen.sfxVolume : 1.0f;
                 game.playSound(game.sndHitPunch, 0.75f * masterSfx);
             }
-            if (p2AnimTimer == 28) p2Hitbox = null;
-            if (p2AnimTimer > 38) { p2State = "IDLE"; p2AnimTimer = 0; }
-        } else if (p2State.equals("HIT")) {
+            if (p2AnimTimer == 14) p2Hitbox = null;
+
+            // Intelligent combo chaining: chain ATTACK1 into ATTACK2 into ATTACK3 if player is in range
+            if (p2AnimTimer > 16) {
+                if (p2State.equals("ATTACK1") && absDist < charW * 0.45f && rand.nextFloat() < 0.8f) {
+                    p2State = "ATTACK2";
+                    p2AnimTimer = 0;
+                    return;
+                } else if (p2State.equals("ATTACK2") && absDist < charW * 0.45f && rand.nextFloat() < 0.7f) {
+                    p2State = "ATTACK3";
+                    p2AnimTimer = 0;
+                    return;
+                }
+            }
+
+            if (p2AnimTimer > 24) {
+                p2Hitbox = null;
+                p2State = "IDLE";
+                p2AnimTimer = 0;
+            }
+            return;
+        }
+
+        // --- HIT RECOVERY ---
+        if (p2State.equals("HIT")) {
             p2AnimTimer++;
             p2VX *= 0.85f;
-            if (p2AnimTimer > 15) { p2State = "IDLE"; p2AnimTimer = 0; }
+            p2Block = false;
+            if (p2AnimTimer > 15) {
+                p2State = "IDLE";
+                p2AnimTimer = 0;
+            }
+            return;
+        }
+
+        // --- 2. THREAT DETECTION: DODGE & DEFENSE INTELLIGENCE ---
+        // A) Projectile Evasion / Dodge
+        for (Projectile p : projectiles) {
+            if (p.active && p.owner == 1) {
+                float bulletDist = Math.abs(p.x - p2X);
+                boolean approaching = (p.vx > 0 && p.x < p2X) || (p.vx < 0 && p.x > p2X);
+                if (approaching && bulletDist < charW * 1.8f) {
+                    if (rand.nextFloat() < dodgeChance) {
+                        // Can we backdash to safety?
+                        boolean hasRoomToBackdash = (p2Facing > 0 && p2X > charW * 0.5f) || (p2Facing < 0 && p2X < stageWidth - charW * 0.5f);
+                        if (hasRoomToBackdash && p2DashCooldown <= 0f && !p2IsDashing) {
+                            triggerP2Dash(false);
+                            addNotice("DODGE!", p2X, p2Y + charW * 0.85f, 0xff9800);
+                            return;
+                        } else {
+                            // Block the incoming blast!
+                            p2Block = true;
+                            p2VX = 0;
+                            return;
+                        }
+                    } else if (rand.nextFloat() < blockChance) {
+                        p2Block = true;
+                        p2VX = 0;
+                        return;
+                    }
+                }
+            }
+        }
+
+        // B) Close Melee Evasion & Whiff Punish
+        boolean playerAttacking = p1State.startsWith("ATTACK") || p1State.equals("DASH_ATTACK") || p1Hitbox != null;
+        if (playerAttacking && absDist < charW * 0.52f) {
+            if (rand.nextFloat() < dodgeChance && p2DashCooldown <= 0f && !p2IsDashing) {
+                // Backdash to dodge Byte's attack!
+                triggerP2Dash(false);
+                addNotice("EVADE!", p2X, p2Y + charW * 0.85f, 0x00e5ff);
+                return;
+            } else if (rand.nextFloat() < blockChance) {
+                p2Block = true;
+                p2VX = 0;
+                return;
+            }
+        } else {
+            p2Block = false;
+        }
+
+        // --- 3. INTELLIGENT MANA USAGE & OFFENSIVE SPECIALS ---
+        // Byte is vulnerable if not blocking (or in attack/recovery/dash)
+        boolean byteVulnerable = !p1Block;
+
+        // HIGH MANA (>= 50): Unleash THE 3 CODE BLAST! (Disabled on EASY so casual players aren't overwhelmed)
+        if (!isEasy && p2SuperGauge >= 50f && p2AttackCooldown <= 0 && byteVulnerable) {
+            p2SuperGauge -= 50f;
+            p2State = "SPECIAL_3X";
+            p2AnimTimer = 0;
+            p2AttackCooldown = 55;
+            p2VX = 0;
+            return;
+        }
+
+        // MID MANA (>= 25): Zoning Single Code Blast
+        if (p2SuperGauge >= 25f && p2AttackCooldown <= 0 && absDist > charW * 0.60f && byteVulnerable) {
+            p2SuperGauge -= 25f;
+            p2State = "SPECIAL";
+            p2AnimTimer = 0;
+            p2AttackCooldown = 45;
+            p2VX = 0;
+            return;
+        }
+
+        // --- 4. TACTICAL MOVEMENT & OFFENSIVE COMBOS ---
+        if (p2State.equals("IDLE") || p2State.equals("WALK")) {
+            // Close range: check if player is attempting to pass / cross over
+            if (absDist <= charW * 0.40f) {
+                boolean playerPassing = (p1Facing > 0 && p1VX > 0 && p1X <= p2X) || (p1Facing < 0 && p1VX < 0 && p1X >= p2X);
+                float passHesitation = isEasy ? 0.75f : (isHard ? 0.25f : 0.50f);
+
+                if (playerPassing && rand.nextFloat() < passHesitation) {
+                    // AI yields or takes a tactical step back, giving the player room to maneuver or cross-up
+                    p2VX = -p2Facing * 1.8f;
+                    p2State = "WALK";
+                    p2AttackCooldown = isEasy ? 45 : 25;
+                } else {
+                    p2VX = 0;
+                    p2State = "IDLE";
+                    if (p2AttackCooldown <= 0) {
+                        p2State = "ATTACK1";
+                        p2AnimTimer = 0;
+                        p2AttackCooldown = attackRate + rand.nextInt(20);
+                    }
+                }
+            }
+            // Mid range: footsies, dash attack, or walk
+            else if (absDist <= charW * 0.85f) {
+                if (p2AttackCooldown <= 0 && p2DashCooldown <= 0f && rand.nextFloat() < 0.40f) {
+                    // Surprise rushdown dash attack!
+                    triggerP2Dash(true);
+                    p2AttackCooldown = attackRate;
+                } else {
+                    p2VX = p2Facing * aiSpeed;
+                    p2State = "WALK";
+                    if (p2IdleFrame % 14 == 0) spawnParticles(p2X, p2Y + 4, 0xff1744, 2);
+                }
+            }
+            // Far range: close distance to engage
+            else {
+                p2VX = p2Facing * aiSpeed;
+                p2State = "WALK";
+                if (p2IdleFrame % 14 == 0) spawnParticles(p2X, p2Y + 4, 0xff1744, 2);
+            }
         }
     }
 
@@ -1084,13 +1436,16 @@ public class FightScreen implements Screen {
             float g = ((gt.color >> 8) & 0xFF) / 255f;
             float b = (gt.color & 0xFF) / 255f;
             game.batch.setColor(r, g, b, alpha);
-            if (game.texPlayerIdle != null) {
+            Texture trailTex = (gt.color == 0xff1744 || gt.color == 0xff9800)
+                ? (game.texEnemyIdle != null ? game.texEnemyIdle : game.texPlayerIdle)
+                : game.texPlayerIdle;
+            if (trailTex != null) {
                 float gx = gt.x - gt.w / 2f;
                 if (gt.facing < 0) {
-                    game.batch.draw(game.texPlayerIdle, gx, gt.y, gt.w, gt.h,
-                        0, 0, game.texPlayerIdle.getWidth(), game.texPlayerIdle.getHeight(), true, false);
+                    game.batch.draw(trailTex, gx, gt.y, gt.w, gt.h,
+                        0, 0, trailTex.getWidth(), trailTex.getHeight(), true, false);
                 } else {
-                    game.batch.draw(game.texPlayerIdle, gx, gt.y, gt.w, gt.h);
+                    game.batch.draw(trailTex, gx, gt.y, gt.w, gt.h);
                 }
             }
         }
@@ -1101,15 +1456,70 @@ public class FightScreen implements Screen {
         drawFighterSprite(p1X, p1Y, charH, charH, true);
         drawFighterSprite(p2X, p2Y, charH, charH, false);
 
-        // Projectiles
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        for (Projectile p : projectiles) {
-            game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
-            game.shapeRenderer.circle(p.x, p.y, h * 0.024f, 16);
-            game.shapeRenderer.setColor(1f, 1f, 1f, 0.9f);
-            game.shapeRenderer.circle(p.x, p.y, h * 0.012f, 12);
+        // Projectiles & Visual Effects (Sprite Batch)
+        game.batch.begin();
+
+        // 1. Visual Effects from effects folder (Hit Sparks, Block Sparks, Dust, Knockback lines, Confetti)
+        for (VisualEffect ve : visualEffects) {
+            float alpha = ve.life / (float) ve.maxLife;
+            float r = ((ve.color >> 16) & 0xFF) / 255f;
+            float g = ((ve.color >> 8) & 0xFF) / 255f;
+            float b = (ve.color & 0xFF) / 255f;
+            game.batch.setColor(r, g, b, alpha);
+            if (ve.tex != null) {
+                game.batch.draw(ve.tex, ve.x - ve.w / 2f, ve.y - ve.h / 2f, ve.w, ve.h);
+            }
         }
-        game.shapeRenderer.end();
+
+        // 2. Projectiles using code_blast_1, code_blast_2, code_blast_trail
+        for (Projectile p : projectiles) {
+            boolean flipX = p.vx < 0;
+            float pW = h * 0.12f;
+            float pH = h * 0.06f;
+            float px = p.x - pW / 2f;
+            float py = p.y - pH / 2f;
+
+            // Color tint: Cyan for Byte, Crimson for WannaCry
+            if (p.owner == 1) {
+                game.batch.setColor(0.2f, 0.95f, 1f, 1f);
+            } else {
+                game.batch.setColor(1.0f, 0.22f, 0.40f, 1f);
+            }
+
+            // Draw trail behind blast
+            Texture trailTex = (game.texProjBlastTrail != null) ? game.texProjBlastTrail : game.texFxProjectileTrail;
+            if (trailTex != null) {
+                float tW = pW * 0.75f;
+                float tH = pH * 0.75f;
+                float tx = flipX ? (p.x + pW * 0.15f) : (p.x - pW * 0.15f - tW);
+                float ty = p.y - tH / 2f;
+                game.batch.draw(trailTex, tx, ty, tW, tH,
+                    0, 0, trailTex.getWidth(), trailTex.getHeight(), flipX, false);
+            }
+
+            // Draw animated code blast (alternate frames)
+            Texture blastTex = ((frame / 4) % 2 == 0) ? game.texProjBlast1 : game.texProjBlast2;
+            if (blastTex == null) blastTex = (game.texProjBlast1 != null) ? game.texProjBlast1 : game.texProjBlast2;
+            if (blastTex != null) {
+                game.batch.draw(blastTex, px, py, pW, pH,
+                    0, 0, blastTex.getWidth(), blastTex.getHeight(), flipX, false);
+            }
+        }
+        game.batch.setColor(1f, 1f, 1f, 1f);
+        game.batch.end();
+
+        // Fallback for projectiles if textures unavailable
+        if (game.texProjBlast1 == null && game.texProjBlast2 == null && !projectiles.isEmpty()) {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            for (Projectile p : projectiles) {
+                if (p.owner == 1) game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1);
+                else game.shapeRenderer.setColor(1f, 0.22f, 0.35f, 1);
+                game.shapeRenderer.circle(p.x, p.y, h * 0.024f, 16);
+                game.shapeRenderer.setColor(1f, 1f, 1f, 0.9f);
+                game.shapeRenderer.circle(p.x, p.y, h * 0.012f, 12);
+            }
+            game.shapeRenderer.end();
+        }
 
         // Particles
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -1123,7 +1533,7 @@ public class FightScreen implements Screen {
         }
         game.shapeRenderer.end();
 
-        // Floating Notices
+        // Floating Notices & White Flash
         game.batch.begin();
         for (FloatingNotice fn : notices) {
             float alpha = Math.min(1.0f, fn.life / 20f);
@@ -1132,6 +1542,16 @@ public class FightScreen implements Screen {
             float b = (fn.color & 0xFF) / 255f;
             game.fontBold.setColor(r, g, b, alpha);
             game.drawTextCentered(game.fontBold, fn.text, fn.x, fn.y);
+        }
+
+        if (koFlashTimer > 0) {
+            koFlashTimer--;
+            if (game.texFxFlashWhite != null) {
+                float flashAlpha = (koFlashTimer / 14f) * 0.7f;
+                game.batch.setColor(1f, 1f, 1f, flashAlpha);
+                game.batch.draw(game.texFxFlashWhite, 0, 0, stageWidth, h);
+                game.batch.setColor(1f, 1f, 1f, 1f);
+            }
         }
         game.batch.end();
     }
@@ -1164,7 +1584,7 @@ public class FightScreen implements Screen {
                 if (animTimer < 15) currentTex = game.texWannaCryAttack1;
                 else currentTex = game.texWannaCryAttack2;
             }
-        } else if (state.equals("SPECIAL")) {
+        } else if (state.startsWith("SPECIAL")) {
             if (isByte) {
                 currentTex = animTimer < 10 ? game.texByteSpecialCharge : game.texByteSpecialFire;
             } else {
@@ -1172,11 +1592,15 @@ public class FightScreen implements Screen {
             }
         } else if (block) {
             currentTex = isByte ? game.texByteBlock : game.texWannaCryBlock;
+        } else if (state.equals("KNOCKDOWN")) {
+            currentTex = isByte ? (game.texByteKnockdown != null ? game.texByteKnockdown : game.texByteLose) : game.texWannaCryLose;
         } else if (state.equals("HIT")) {
             if (isByte) {
-                currentTex = (animTimer < 8) ? game.texByteHit1 : game.texByteHit2;
+                Texture h2 = (game.texByteHit2 != null) ? game.texByteHit2 : game.texByteHit1;
+                currentTex = (animTimer < 8) ? game.texByteHit1 : h2;
             } else {
-                currentTex = (animTimer < 8) ? game.texWannaCryHit1 : game.texWannaCryHit2;
+                Texture h2 = (game.texWannaCryHit2 != null) ? game.texWannaCryHit2 : game.texWannaCryHit1;
+                currentTex = (animTimer < 8) ? game.texWannaCryHit1 : h2;
             }
             drawY += (float) Math.sin(animTimer * 0.8f) * 6f;
         } else if (state.equals("WALK")) {
@@ -1190,12 +1614,13 @@ public class FightScreen implements Screen {
             drawY = y + Math.abs(stride) * (h * 0.022f);
         } else if (state.equals("WIN")) {
             if (isByte) {
-                currentTex = ((idleF / 20) % 2 == 1) ? game.texByteWin2 : game.texByteWin1;
+                Texture w2 = (game.texByteWin2 != null) ? game.texByteWin2 : game.texByteWin1;
+                currentTex = ((idleF / 20) % 2 == 1) ? w2 : game.texByteWin1;
             } else {
                 currentTex = game.texWannaCryWin;
             }
         } else if (state.equals("LOSE")) {
-            currentTex = isByte ? game.texByteLose : game.texWannaCryLose;
+            currentTex = isByte ? (game.texByteKnockdown != null ? game.texByteKnockdown : game.texByteLose) : game.texWannaCryLose;
         } else {
             // IDLE state with breathing animation
             boolean frame2 = ((idleF / 20) % 2 == 1);
@@ -1213,6 +1638,20 @@ public class FightScreen implements Screen {
         if (currentTex == null) currentTex = isByte ? game.texPlayerIdle : game.texEnemyIdle;
 
         game.batch.begin();
+
+        // Special aura behind fighter during special charge/attack
+        if (state.startsWith("SPECIAL") && game.texFxSpecialAura != null) {
+            float auraSize = h * 0.9f;
+            float pulse = 1f + (float) Math.sin(frame * 0.3f) * 0.12f;
+            float aW = auraSize * pulse;
+            float aH = auraSize * pulse;
+            float ax = x - aW / 2f;
+            float ay = y + h * 0.45f - aH / 2f;
+            if (isP1) game.batch.setColor(0.1f, 0.85f, 1f, 0.75f);
+            else game.batch.setColor(1f, 0.22f, 0.35f, 0.8f);
+            game.batch.draw(game.texFxSpecialAura, ax, ay, aW, aH);
+        }
+
         if (flash > 0) {
             game.batch.setColor(1f, 0.35f, 0.35f, 1f);
         } else if (!isP1 && mode == GameMode.VERSUS) {
@@ -1236,11 +1675,14 @@ public class FightScreen implements Screen {
 
         // Firewall shield effect
         if (block) {
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             game.shapeRenderer.setColor(isP1 ? 0f : 1f, isP1 ? 0.85f : 0.6f, isP1 ? 1f : 0.1f, 0.35f);
             float shieldX = (facing > 0) ? x + w * 0.1f : x - w * 0.5f;
             game.shapeRenderer.rect(shieldX, y, w * 0.4f, h * 0.88f);
             game.shapeRenderer.end();
+            Gdx.gl.glDisable(GL20.GL_BLEND);
 
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
             game.shapeRenderer.setColor(isP1 ? 0.31f : 1f, isP1 ? 0.95f : 0.7f, isP1 ? 1f : 0.2f, 0.9f);
@@ -1408,15 +1850,10 @@ public class FightScreen implements Screen {
             game.shapeRenderer.end();
         }
 
-        // P1 Text Labels (Name + Mana Level Number)
+        // P1 Text Labels (Name)
         game.batch.begin();
         game.fontBold.setColor(1, 1, 1, 1);
         game.fontBold.draw(game.batch, "CAT", p1BarX + 8, barY + barH + 20);
-
-        // P1 Mana Level Badge (Cyan / Emerald)
-        String p1ManaLabel = (p1SuperLevel >= 3) ? "MANA: MAX" : ("MANA: LV." + p1SuperLevel);
-        game.fontSmall.setColor(0.0f, 0.95f, 0.55f, 1f);
-        game.drawTextCentered(game.fontSmall, p1ManaLabel, p1BarX + 60, manaY + manaH / 2f);
         game.batch.end();
 
         // =========================================================================
@@ -1520,11 +1957,6 @@ public class FightScreen implements Screen {
             game.fontBold.setColor(1.0f, 0.3f, 0.3f, 1);
             game.drawTextCentered(game.fontBold, "WANNACRY", p2BarX + barMaxW - 60, barY + barH + 20);
         }
-
-        // P2 Mana Level Badge (Fiery Gold / Orange)
-        String p2ManaLabel = (p2SuperLevel >= 3) ? "MANA: MAX" : ("MANA: LV." + p2SuperLevel);
-        game.fontSmall.setColor(1.0f, 0.75f, 0.2f, 1f);
-        game.drawTextCentered(game.fontSmall, p2ManaLabel, p2BarX + barMaxW - 60, manaY + manaH / 2f);
         game.batch.end();
 
         if (game.texPortraitFrameEnemy == null) {
@@ -1567,6 +1999,15 @@ public class FightScreen implements Screen {
             float vsW = h * 0.055f;
             float vsH = vsW * 0.65f;
             game.batch.draw(game.texVsBadge, w / 2f - vsW / 2f, timerBoxY - vsH - 2, vsW, vsH);
+        }
+
+        if (mode == GameMode.ARCADE) {
+            String d = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+            if (d.equals("EASY")) game.fontSmall.setColor(0.3f, 1f, 0.4f, 0.9f);
+            else if (d.equals("HARD")) game.fontSmall.setColor(1f, 0.25f, 0.25f, 0.9f);
+            else game.fontSmall.setColor(0.3f, 0.85f, 1f, 0.9f);
+            float badgeY = (game.texVsBadge != null) ? timerBoxY - h * 0.055f * 0.65f - 14 : timerBoxY - 14;
+            game.drawTextCentered(game.fontSmall, d, w / 2f, badgeY);
         }
         game.batch.end();
     }
@@ -1649,13 +2090,24 @@ public class FightScreen implements Screen {
             bannerTex = game.texTimeOverBanner;
         }
 
+        String[] lines = bannerText.split("\n");
+
         if (bannerTex != null) {
             game.batch.begin();
             float bw = w * 0.65f;
             float bh = bannerH * 1.15f;
             game.batch.draw(bannerTex, w / 2f - bw / 2f, bannerY + bannerH / 2f - bh / 2f, bw, bh);
+
+            // If there is a subtitle (e.g. "PLAYER 1 WINS ROUND"), draw it cleanly beneath the banner image
+            if (lines.length > 1) {
+                game.fontBold.setColor(1f, 1f, 1f, 0.95f);
+                game.drawTextCentered(game.fontBold, lines[1], w / 2f, bannerY - 18f);
+            }
             game.batch.end();
         } else {
+            // Fallback only when banner graphic assets are missing
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             game.shapeRenderer.setColor(0, 0, 0, 0.78f);
             game.shapeRenderer.rect(0, bannerY, w, bannerH);
@@ -1665,19 +2117,19 @@ public class FightScreen implements Screen {
             game.shapeRenderer.setColor(1.0f, 0.85f, 0.1f, 1f);
             game.shapeRenderer.rect(0, bannerY, w, bannerH);
             game.shapeRenderer.end();
-        }
+            Gdx.gl.glDisable(GL20.GL_BLEND);
 
-        game.batch.begin();
-        game.fontTitle.setColor(1.0f, 0.88f, 0.2f, 1);
-        String[] lines = bannerText.split("\n");
-        if (lines.length == 1) {
-            game.drawTextCentered(game.fontTitle, lines[0], w / 2f, bannerY + bannerH / 2f);
-        } else {
-            game.drawTextCentered(game.fontTitle, lines[0], w / 2f, bannerY + bannerH * 0.68f);
-            game.fontBold.setColor(1, 1, 1, 1);
-            game.drawTextCentered(game.fontBold, lines[1], w / 2f, bannerY + bannerH * 0.30f);
+            game.batch.begin();
+            game.fontTitle.setColor(1.0f, 0.88f, 0.2f, 1);
+            if (lines.length == 1) {
+                game.drawTextCentered(game.fontTitle, lines[0], w / 2f, bannerY + bannerH / 2f);
+            } else {
+                game.drawTextCentered(game.fontTitle, lines[0], w / 2f, bannerY + bannerH * 0.68f);
+                game.fontBold.setColor(1, 1, 1, 1);
+                game.drawTextCentered(game.fontBold, lines[1], w / 2f, bannerY + bannerH * 0.30f);
+            }
+            game.batch.end();
         }
-        game.batch.end();
     }
 
     void drawMatchOverBanner(float w, float h) {
@@ -1689,8 +2141,12 @@ public class FightScreen implements Screen {
             float bw = w * 0.70f;
             float bh = bannerH * 0.85f;
             game.batch.draw(game.texWinnerBanner, w / 2f - bw / 2f, bannerY + bannerH / 2f - bh / 2f + 25, bw, bh);
+            game.fontBold.setColor(1.0f, 0.88f, 0.2f, 1f);
+            game.drawTextCentered(game.fontBold, matchWinnerText, w / 2f, bannerY + bannerH * 0.40f);
             game.batch.end();
         } else {
+            Gdx.gl.glEnable(GL20.GL_BLEND);
+            Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
             game.shapeRenderer.setColor(0.04f, 0.08f, 0.14f, 0.92f);
             game.shapeRenderer.rect(0, bannerY, w, bannerH);
@@ -1700,12 +2156,13 @@ public class FightScreen implements Screen {
             game.shapeRenderer.setColor(0.0f, 0.85f, 1f, 1f);
             game.shapeRenderer.rect(0, bannerY, w, bannerH);
             game.shapeRenderer.end();
-        }
+            Gdx.gl.glDisable(GL20.GL_BLEND);
 
-        game.batch.begin();
-        game.fontTitle.setColor(1.0f, 0.88f, 0.2f, 1);
-        game.drawTextCentered(game.fontTitle, matchWinnerText, w / 2f, bannerY + bannerH * 0.72f);
-        game.batch.end();
+            game.batch.begin();
+            game.fontTitle.setColor(1.0f, 0.88f, 0.2f, 1);
+            game.drawTextCentered(game.fontTitle, matchWinnerText, w / 2f, bannerY + bannerH * 0.72f);
+            game.batch.end();
+        }
 
         // Rematch & Menu Buttons
         float btnW = w * 0.22f;
@@ -1834,6 +2291,50 @@ public class FightScreen implements Screen {
         notices.add(new FloatingNotice(text, x, y, color, 45));
     }
 
+    void spawnHitSpark(float x, float y, int color) {
+        if (game.texFxHitSpark != null) {
+            visualEffects.add(new VisualEffect(game.texFxHitSpark, x, y, 42f, 42f, 0, 0, 10, color));
+        }
+    }
+
+    void spawnBlockSpark(float x, float y) {
+        if (game.texFxBlockSpark != null) {
+            visualEffects.add(new VisualEffect(game.texFxBlockSpark, x, y, 48f, 48f, 0, 0, 12, 0xffff00));
+        }
+    }
+
+    void spawnDashDust(float x, float y, float facing) {
+        if (game.texFxDashDust != null) {
+            visualEffects.add(new VisualEffect(game.texFxDashDust, x - facing * 18f, y, 36f, 36f, -facing * 1.5f, 0.4f, 14, 0xffffff));
+        }
+    }
+
+    void spawnEncryptBurst(float x, float y) {
+        if (game.texFxEncryptBurst != null) {
+            visualEffects.add(new VisualEffect(game.texFxEncryptBurst, x, y, 110f, 110f, 0, 0, 18, 0xff1744));
+        }
+    }
+
+    void spawnKnockbackLines(float x, float y, float facing) {
+        if (game.texFxKnockbackLines != null) {
+            visualEffects.add(new VisualEffect(game.texFxKnockbackLines, x - facing * 25f, y, 64f, 32f, -facing * 3f, 0, 10, 0x00e5ff));
+        }
+    }
+
+    void spawnConfetti(float w, float h) {
+        if (game.texFxConfetti != null) {
+            for (int i = 0; i < 3; i++) {
+                float cx = rand.nextFloat() * w;
+                float cy = h + 10f;
+                float vx = (rand.nextFloat() - 0.5f) * 3f;
+                float vy = -2f - rand.nextFloat() * 3f;
+                int[] cols = {0x00e5ff, 0xff1744, 0xffd54f, 0x00e676, 0xe040fb};
+                int col = cols[rand.nextInt(cols.length)];
+                visualEffects.add(new VisualEffect(game.texFxConfetti, cx, cy, 14f, 14f, vx, vy, 120, col));
+            }
+        }
+    }
+
     @Override public void resize(int width, int height) { game.updateFontScales(); }
     @Override public void pause() { isPaused = true; }
     @Override public void resume() {}
@@ -1855,9 +2356,44 @@ public class FightScreen implements Screen {
     static class Projectile {
         float x, y, vx;
         int damage;
+        int owner = 1; // 1 = P1 (Byte), 2 = P2 (WannaCry)
         boolean active = true;
+
         Projectile(float x, float y, float vx, int damage) {
-            this.x = x; this.y = y; this.vx = vx; this.damage = damage;
+            this(x, y, vx, damage, (vx > 0 ? 1 : 2));
+        }
+
+        Projectile(float x, float y, float vx, int damage, int owner) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.damage = damage;
+            this.owner = owner;
+        }
+    }
+
+    static class VisualEffect {
+        Texture tex;
+        float x, y, w, h;
+        float vx, vy;
+        int life, maxLife;
+        int color;
+
+        VisualEffect(Texture tex, float x, float y, float w, float h, int maxLife) {
+            this(tex, x, y, w, h, 0, 0, maxLife, 0xffffff);
+        }
+
+        VisualEffect(Texture tex, float x, float y, float w, float h, float vx, float vy, int maxLife, int color) {
+            this.tex = tex;
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.vx = vx;
+            this.vy = vy;
+            this.life = maxLife;
+            this.maxLife = maxLife;
+            this.color = color;
         }
     }
 

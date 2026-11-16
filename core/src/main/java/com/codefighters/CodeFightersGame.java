@@ -94,6 +94,9 @@ public class CodeFightersGame extends Game {
     public Texture texByteWin1;
     public Texture texByteWin2;
     public Texture texByteLose;
+    public Texture texByteKnockdown;
+    public Texture texByteEmoteAngry;
+    public Texture texByteEmoteHappy;
     public Texture texBytePortrait;
 
     // --- Textures: Character WannaCry (12 files) ---
@@ -262,6 +265,7 @@ public class CodeFightersGame extends Game {
 
         // Initialize screens
         settingsScreen = new SettingsScreen(this);
+        settingsScreen.loadSettings();
         splashScreen = new SplashScreen(this);
         loadingScreen = new LoadingScreen(this);
         menuScreen = new MenuScreen(this);
@@ -356,6 +360,9 @@ public class CodeFightersGame extends Game {
         texByteWin1 = loadTextureSafe("images/byte/win_1.png");
         texByteWin2 = loadTextureSafe("images/byte/win_2.png");
         texByteLose = loadTextureSafe("images/byte/lose.png");
+        texByteKnockdown = loadTextureSafe("images/byte/knockdown.png");
+        texByteEmoteAngry = loadTextureSafe("images/byte/emote_angry.png");
+        texByteEmoteHappy = loadTextureSafe("images/byte/emote_happy.png");
         texBytePortrait = loadTextureSafe("images/byte/portrait.png");
 
         // --- Character: WannaCry ---
@@ -660,6 +667,9 @@ public class CodeFightersGame extends Game {
         disposeTexture(texByteWin1);
         disposeTexture(texByteWin2);
         disposeTexture(texByteLose);
+        disposeTexture(texByteKnockdown);
+        disposeTexture(texByteEmoteAngry);
+        disposeTexture(texByteEmoteHappy);
         disposeTexture(texBytePortrait);
 
         // Dispose Character WannaCry

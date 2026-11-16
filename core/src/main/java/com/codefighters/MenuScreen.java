@@ -329,7 +329,7 @@ public class MenuScreen implements Screen {
 
         game.batch.begin();
         game.fontSmall.setColor(0.50f, 0.52f, 0.58f, 1f);
-        game.fontSmall.draw(game.batch, "VER 1.0.0", W * 0.03f, H * 0.055f);
+        game.fontSmall.draw(game.batch, "v1.2.0", W * 0.03f, H * 0.055f);
         game.drawTextCentered(game.fontSmall, "(C) C0D3_4U", W / 2f, H * 0.055f);
         game.batch.end();
     }
@@ -358,7 +358,7 @@ public class MenuScreen implements Screen {
                       ? logoW * ((float) titleTex.getHeight() / titleTex.getWidth())
                       : logoW * 0.25f;
         float logoX = W / 2f - logoW / 2f;
-        float logoY = H * 0.74f;
+        float logoY = H * 0.78f;
 
         game.batch.begin();
         if (titleTex != null) {
@@ -369,33 +369,34 @@ public class MenuScreen implements Screen {
         }
         game.batch.end();
 
-        float btnW  = W * 0.44f;
-        float btnH  = H * 0.078f;
-        float btnX  = W / 2f - btnW / 2f;
-        float startY = H * 0.67f;
-        float gap   = btnH * 1.18f;
+        // ── Button layout: wider, taller, generously spaced ──────────────────
+        float btnW   = W * 0.52f;                // wider panels
+        float btnH   = H * 0.072f;               // slightly shorter so 6 fit well
+        float btnX   = W / 2f - btnW / 2f;
+        float gap    = btnH + H * 0.028f;         // button height + visible breathing room
+        float startY = H * 0.715f;               // first button near top of panel
 
-        drawMenuButton(btnX, startY,          btnW, btnH, "ARCADE MODE",     0x00bcd4, 0x004d5a, true);
-        if (isButtonClicked(btnX, startY,          btnW, btnH)) { game.currentMode = GameMode.ARCADE;  game.setScreen(game.charSelectScreen); }
+        drawMenuButton(btnX, startY,              btnW, btnH, "ARCADE MODE",      0x00bcd4, 0x004d5a, true);
+        if (isButtonClicked(btnX, startY,              btnW, btnH)) { game.currentMode = GameMode.ARCADE;  game.setScreen(game.charSelectScreen); }
 
-        drawMenuButton(btnX, startY - gap,     btnW, btnH, "VERSUS MODE (2P)", 0xff9800, 0xbf360c, false);
-        if (isButtonClicked(btnX, startY - gap,     btnW, btnH)) { game.currentMode = GameMode.VERSUS; game.setScreen(game.versusCharSelectScreen); }
+        drawMenuButton(btnX, startY - gap,         btnW, btnH, "VERSUS MODE (2P)", 0xff9800, 0xbf360c, false);
+        if (isButtonClicked(btnX, startY - gap,         btnW, btnH)) { game.currentMode = GameMode.VERSUS; game.setScreen(game.versusCharSelectScreen); }
 
-        drawMenuButton(btnX, startY - gap * 2, btnW, btnH, "GALLERY",         0x7c4dff, 0x2e185c, false);
-        if (isButtonClicked(btnX, startY - gap * 2, btnW, btnH)) { game.setScreen(game.galleryScreen); }
+        drawMenuButton(btnX, startY - gap * 2,     btnW, btnH, "GALLERY",          0x7c4dff, 0x2e185c, false);
+        if (isButtonClicked(btnX, startY - gap * 2,     btnW, btnH)) { game.setScreen(game.galleryScreen); }
 
-        drawMenuButton(btnX, startY - gap * 3, btnW, btnH, "HOW TO PLAY",     0x26a69a, 0x0d473d, false);
-        if (isButtonClicked(btnX, startY - gap * 3, btnW, btnH)) { game.setScreen(game.howToPlayScreen); }
+        drawMenuButton(btnX, startY - gap * 3,     btnW, btnH, "HOW TO PLAY",      0x26a69a, 0x0d473d, false);
+        if (isButtonClicked(btnX, startY - gap * 3,     btnW, btnH)) { game.setScreen(game.howToPlayScreen); }
 
-        drawMenuButton(btnX, startY - gap * 4, btnW, btnH, "SETTINGS",        0x546e7a, 0x263238, false);
-        if (isButtonClicked(btnX, startY - gap * 4, btnW, btnH)) { game.setScreen(game.settingsScreen); }
+        drawMenuButton(btnX, startY - gap * 4,     btnW, btnH, "SETTINGS",         0x546e7a, 0x263238, false);
+        if (isButtonClicked(btnX, startY - gap * 4,     btnW, btnH)) { game.setScreen(game.settingsScreen); }
 
-        drawMenuButton(btnX, startY - gap * 5, btnW, btnH, "CREDITS",         0x455a64, 0x1c2833, false);
-        if (isButtonClicked(btnX, startY - gap * 5, btnW, btnH)) { game.setScreen(game.creditsScreen); }
+        drawMenuButton(btnX, startY - gap * 5,     btnW, btnH, "CREDITS",          0x455a64, 0x1c2833, false);
+        if (isButtonClicked(btnX, startY - gap * 5,     btnW, btnH)) { game.setScreen(game.creditsScreen); }
 
         game.batch.begin();
         game.fontSmall.setColor(0.45f, 0.47f, 0.52f, 1f);
-        game.fontSmall.draw(game.batch, "VER 1.0.0", W * 0.03f, H * 0.055f);
+        game.fontSmall.draw(game.batch, "v1.2.0", W * 0.03f, H * 0.055f);
         game.drawTextCentered(game.fontSmall, "(C) C0D3_4U", W / 2f, H * 0.055f);
         game.batch.end();
     }

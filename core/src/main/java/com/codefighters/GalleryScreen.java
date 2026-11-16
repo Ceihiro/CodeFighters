@@ -57,38 +57,49 @@ public class GalleryScreen implements Screen {
         game.drawTextCentered(game.fontTitle, "INTEL ARCHIVE", w / 2f, h * 0.94f);
         game.batch.end();
 
-        // Tabs
-        float tabW = w * 0.28f;
-        float tabH = h * 0.065f;
-        float tabY = h * 0.88f;
+        // Layout measurements: tabs sit cleanly on top of the content card
+        float cardX = w * 0.06f;
+        float cardW = w * 0.88f;
+        float cardY = h * 0.12f;
+        float contentH = h * 0.69f;
+        float contentY = cardY + contentH; // exactly h * 0.81f
 
-        drawTab(w*0.04f, tabY, tabW, tabH, "CHARACTERS", tab==0);
-        drawTab(w*0.36f, tabY, tabW, tabH, "THREATS", tab==1);
-        drawTab(w*0.68f, tabY, tabW, tabH, "DOSSIER", tab==2);
+        float tabH = h * 0.060f;
+        float tabY = contentY; // tab bottom touches card top perfectly
+        float tabW = (cardW - 20f) / 3f;
 
-        if (isTabClicked(w*0.04f, tabY, tabW, tabH)) {
-            if (tab != 0) game.playSound(game.sndMenuNav, 0.7f);
-            tab = 0;
-        }
-        if (isTabClicked(w*0.36f, tabY, tabW, tabH)) {
-            if (tab != 1) game.playSound(game.sndMenuNav, 0.7f);
-            tab = 1;
-        }
-        if (isTabClicked(w*0.68f, tabY, tabW, tabH)) {
-            if (tab != 2) game.playSound(game.sndMenuNav, 0.7f);
-            tab = 2;
-        }
-
-        float contentY = h*0.86f;
-        float contentH = h*0.72f;
-
+        // Draw Content Card First
         if (tab == 0) drawCharactersTab(w, h, contentY, contentH);
         else if (tab == 1) drawEnemiesTab(w, h, contentY, contentH);
         else drawDossierTab(w, h, contentY, contentH);
 
+        // Draw Tabs on top (so they never get covered or blocked)
+        float t1X = cardX;
+        float t2X = cardX + tabW + 10f;
+        float t3X = cardX + (tabW + 10f) * 2;
+
+        drawTab(t1X, tabY, tabW, tabH, "CHARACTERS", tab == 0);
+        drawTab(t2X, tabY, tabW, tabH, "THREATS", tab == 1);
+        drawTab(t3X, tabY, tabW, tabH, "DOSSIER", tab == 2);
+
+        if (isTabClicked(t1X, tabY, tabW, tabH)) {
+            if (tab != 0) game.playSound(game.sndMenuNav, 0.7f);
+            tab = 0;
+        }
+        if (isTabClicked(t2X, tabY, tabW, tabH)) {
+            if (tab != 1) game.playSound(game.sndMenuNav, 0.7f);
+            tab = 1;
+        }
+        if (isTabClicked(t3X, tabY, tabW, tabH)) {
+            if (tab != 2) game.playSound(game.sndMenuNav, 0.7f);
+            tab = 2;
+        }
+
         // Back button
-        drawButton(w*0.04f, h*0.03f, w*0.20f, h*0.07f, "BACK", 0x546e7a, 0x263238);
-        if (isButtonClicked(w*0.04f, h*0.03f, w*0.20f, h*0.07f)) {
+        float bBtnW = w * 0.18f;
+        float bBtnH = h * 0.068f;
+        drawButton(cardX, h * 0.035f, bBtnW, bBtnH, "BACK", 0x546e7a, 0x263238);
+        if (isButtonClicked(cardX, h * 0.035f, bBtnW, bBtnH)) {
             game.playSound(game.sndMenuBack, 0.8f);
             game.setScreen(game.menuScreen);
         }
@@ -341,26 +352,29 @@ public class GalleryScreen implements Screen {
     }
 
     void drawTab(float x, float y, float w, float h, String text, boolean active) {
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(active ? 0.2f : 0.08f, active ? 0.45f : 0.12f, active ? 0.6f : 0.18f, 1);
-        game.shapeRenderer.rect(x, y - h, w, h);
+        game.shapeRenderer.setColor(active ? 0.16f : 0.07f, active ? 0.38f : 0.10f, active ? 0.52f : 0.15f, 0.95f);
+        game.shapeRenderer.rect(x, y, w, h);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(active ? 0.31f : 0.2f, active ? 0.85f : 0.3f, 1, 1);
-        game.shapeRenderer.rect(x, y - h, w, h);
+        game.shapeRenderer.setColor(active ? 0.31f : 0.20f, active ? 0.85f : 0.35f, 1f, 1f);
+        game.shapeRenderer.rect(x, y, w, h);
         game.shapeRenderer.end();
 
         game.batch.begin();
-        game.fontBold.setColor(active ? 1f : 0.65f, active ? 1f : 0.65f, active ? 1f : 0.65f, 1);
-        game.drawTextCentered(game.fontBold, text, x + w / 2f, y - h / 2f);
+        game.fontBold.setColor(active ? 1f : 0.65f, active ? 1f : 0.65f, active ? 1f : 0.65f, 1f);
+        game.drawTextCentered(game.fontBold, text, x + w / 2f, y + h / 2f);
         game.batch.end();
     }
 
     boolean isTabClicked(float x, float y, float w, float h) {
         float mx = Gdx.input.getX();
         float my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        return mx >= x && mx <= x + w && my >= y - h && my <= y && Gdx.input.justTouched();
+        return mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
     }
 
     void drawButton(float x, float y, float bw, float bh, String text, int hoverCol, int col) {
