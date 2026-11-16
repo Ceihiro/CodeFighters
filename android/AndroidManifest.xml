@@ -13,6 +13,7 @@
         <activity
             android:name="com.codefighters.android.SplashActivity"
             android:exported="true"
+            android:theme="@style/SplashTheme"
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize">
             <intent-filter>
