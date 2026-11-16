@@ -47,12 +47,24 @@ public class CodeFightersGame extends Game {
     // Backward compatibility aliases
     public Sound sndWinJingle;
     public Sound sndDamageGlitch;
+    public Sound sndGlitchTransition;
 
     // --- Audio: Music ---
     public Music musicMenu;
     public Music musicFight;
     public Music musicWin;
     public Music currentMusic = null;
+
+    // --- Textures: Menu Parallax Layers ---
+    public Texture texLayerSky;
+    public Texture texLayerFar;
+    public Texture texLayerMid;
+    public Texture texLayerFloor;
+    public Texture texLayerGlow;
+    public Texture texRun1;
+    public Texture texRun2;
+    public Texture texRun3;
+    public Texture texRun4;
 
     // --- Textures: Backgrounds (8 files) ---
     public Texture texBgMenu;
@@ -119,6 +131,7 @@ public class CodeFightersGame extends Game {
     public Texture texFxFlashWhite;
     public Texture texFxKnockbackLines;
     public Texture texFxConfetti;
+    public Texture texGlitchNoise;
 
     // --- Textures: Projectiles (3 files) ---
     public Texture texProjBlast1;
@@ -296,11 +309,24 @@ public class CodeFightersGame extends Game {
         // Aliases
         sndWinJingle = sndVictoryFanfare != null ? sndVictoryFanfare : sndHitPunch;
         sndDamageGlitch = sndDamageWannacry != null ? sndDamageWannacry : sndHitPunch;
+        sndGlitchTransition = loadSoundSafe("sounds/glitch_transition.ogg");
 
         // --- Music ---
         musicMenu = loadMusicSafe("sounds/menu_music.ogg");
         musicFight = loadMusicSafe("sounds/fight_music.ogg");
         musicWin = loadMusicSafe("sounds/win_music.ogg");
+
+        // --- Backgrounds ---
+        // --- Menu Parallax Layers ---
+        texLayerSky   = loadTextureSafe("images/menu_parallax/layer_sky.png");
+        texLayerFar   = loadTextureSafe("images/menu_parallax/layer_far.png");
+        texLayerMid   = loadTextureSafe("images/menu_parallax/layer_mid.png");
+        texLayerFloor = loadTextureSafe("images/menu_parallax/layer_floor.png");
+        texLayerGlow  = loadTextureSafe("images/menu_parallax/layer_glow.png");
+        texRun1       = loadTextureSafe("images/menu_parallax/run_1.png");
+        texRun2       = loadTextureSafe("images/menu_parallax/run_2.png");
+        texRun3       = loadTextureSafe("images/menu_parallax/run_3.png");
+        texRun4       = loadTextureSafe("images/menu_parallax/run_4.png");
 
         // --- Backgrounds ---
         texBgMenu = loadTextureSafe("images/backgrounds/menu.png");
@@ -367,6 +393,7 @@ public class CodeFightersGame extends Game {
         texFxFlashWhite = loadTextureSafe("images/effects/screen_flash_white.png");
         texFxKnockbackLines = loadTextureSafe("images/effects/knockback_lines.png");
         texFxConfetti = loadTextureSafe("images/effects/victory_confetti.png");
+        texGlitchNoise = loadTextureSafe("images/effects/glitch_noise_tile.png");
 
         // --- Projectiles ---
         texProjBlast1 = loadTextureSafe("images/projectiles/code_blast_1.png");
@@ -589,6 +616,7 @@ public class CodeFightersGame extends Game {
         disposeSound(sndDamageWannacry);
         disposeSound(sndVictoryFanfare);
         disposeSound(sndDefeatJingle);
+        disposeSound(sndGlitchTransition);
 
         // Dispose Music
         disposeMusic(musicMenu);
@@ -597,6 +625,15 @@ public class CodeFightersGame extends Game {
 
         // Dispose Backgrounds
         disposeTexture(texBgMenu);
+        disposeTexture(texLayerSky);
+        disposeTexture(texLayerFar);
+        disposeTexture(texLayerMid);
+        disposeTexture(texLayerFloor);
+        disposeTexture(texLayerGlow);
+        disposeTexture(texRun1);
+        disposeTexture(texRun2);
+        disposeTexture(texRun3);
+        disposeTexture(texRun4);
         disposeTexture(texBgFight);
         disposeTexture(texBgCharSelect);
         disposeTexture(texBgVersus);
@@ -650,6 +687,7 @@ public class CodeFightersGame extends Game {
         disposeTexture(texFxFlashWhite);
         disposeTexture(texFxKnockbackLines);
         disposeTexture(texFxConfetti);
+        disposeTexture(texGlitchNoise);
 
         // Dispose Projectiles
         disposeTexture(texProjBlast1);
