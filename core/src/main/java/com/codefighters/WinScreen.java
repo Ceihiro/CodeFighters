@@ -36,7 +36,16 @@ public class WinScreen implements Screen {
         timer += delta;
 
         if (!jinglePlayed) {
-            game.playSound(game.sndWinJingle, 0.65f);
+            if (game.musicWin != null) {
+                game.playMusic(game.musicWin, false);
+            } else if (game.sndVictoryFanfare != null) {
+                game.playSound(game.sndVictoryFanfare, 0.9f);
+            } else {
+                game.playSound(game.sndWinJingle, 0.65f);
+            }
+            if (game.sndAnnouncerWinner != null) {
+                game.playSound(game.sndAnnouncerWinner, 0.85f);
+            }
             jinglePlayed = true;
         }
 
@@ -48,48 +57,66 @@ public class WinScreen implements Screen {
 
         // Background
         game.batch.begin();
-        if (game.texBgMenu != null) {
-            game.batch.setColor(0.18f, 0.45f, 0.22f, 1f);
-            game.batch.draw(game.texBgMenu, 0, 0, w, h);
+        com.badlogic.gdx.graphics.Texture bg = game.texBgWin != null ? game.texBgWin : game.texBgMenu;
+        if (bg != null) {
+            game.batch.setColor(0.55f, 0.85f, 0.6f, 1f);
+            game.batch.draw(bg, 0, 0, w, h);
             game.batch.setColor(1, 1, 1, 1);
         }
         game.batch.end();
 
         // Dark overlay
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0, 0, 0, 0.68f);
+        game.shapeRenderer.setColor(0, 0, 0, 0.58f);
         game.shapeRenderer.rect(0, 0, w, h);
         game.shapeRenderer.end();
 
-        // Victory floating spark particles
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        for (int i = 0; i < 22; i++) {
-            float px = (float) (Math.sin(timer * 0.9f + i * 1.4f) * w * 0.46f + w / 2f);
-            float py = (float) (Math.cos(timer * 1.1f + i * 2.0f) * h * 0.28f + h * 0.52f);
-            game.shapeRenderer.setColor(0.1f, 0.85f, 0.3f, 0.55f);
-            game.shapeRenderer.circle(px, py, 3 + (i % 3), 8);
+        // Victory confetti / spark particles
+        if (game.texFxConfetti != null) {
+            game.batch.begin();
+            for (int i = 0; i < 15; i++) {
+                float cx = (float) ((Math.sin(timer * 0.7f + i * 1.5f) * 0.45f + 0.5f) * w);
+                float cy = ((timer * 60f + i * 40f) % (h + 100)) - 50;
+                game.batch.draw(game.texFxConfetti, cx, h - cy, 28, 28);
+            }
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            for (int i = 0; i < 22; i++) {
+                float px = (float) (Math.sin(timer * 0.9f + i * 1.4f) * w * 0.46f + w / 2f);
+                float py = (float) (Math.cos(timer * 1.1f + i * 2.0f) * h * 0.28f + h * 0.52f);
+                game.shapeRenderer.setColor(0.1f, 0.85f, 0.3f, 0.55f);
+                game.shapeRenderer.circle(px, py, 3 + (i % 3), 8);
+            }
+            game.shapeRenderer.end();
         }
-        game.shapeRenderer.end();
 
-        // === VICTORY Banner ===
+        // Winner Banner Texture or Rendered
         float bannerY = h * 0.77f;
         float bannerH = h * 0.16f;
 
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.0f, 0.30f, 0.08f, 0.92f);
-        game.shapeRenderer.rect(0, bannerY, w, bannerH);
-        game.shapeRenderer.end();
+        if (game.texWinnerBanner != null) {
+            game.batch.begin();
+            float bw = Math.min(w * 0.75f, 540);
+            game.batch.draw(game.texWinnerBanner, w / 2f - bw / 2f, bannerY, bw, bannerH);
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(0.0f, 0.30f, 0.08f, 0.92f);
+            game.shapeRenderer.rect(0, bannerY, w, bannerH);
+            game.shapeRenderer.end();
 
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.2f, 1f, 0.4f, 1f);
-        game.shapeRenderer.rect(0, bannerY, w, bannerH);
-        game.shapeRenderer.end();
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(0.2f, 1f, 0.4f, 1f);
+            game.shapeRenderer.rect(0, bannerY, w, bannerH);
+            game.shapeRenderer.end();
 
-        // "VICTORY!" text
-        game.batch.begin();
-        game.fontTitle.setColor(0.2f, 1f, 0.35f, 1f);
-        game.drawTextCentered(game.fontTitle, "VICTORY!", w / 2f, bannerY + bannerH / 2f);
-        game.batch.end();
+            // "VICTORY!" text
+            game.batch.begin();
+            game.fontTitle.setColor(0.2f, 1f, 0.35f, 1f);
+            game.drawTextCentered(game.fontTitle, "VICTORY!", w / 2f, bannerY + bannerH / 2f);
+            game.batch.end();
+        }
 
         // Subtitle
         game.batch.begin();
@@ -98,10 +125,20 @@ public class WinScreen implements Screen {
         game.batch.end();
 
         // === Stats card ===
-        float cardX = w * 0.16f;
-        float cardW = w * 0.68f;
-        float cardH = h * 0.32f;
-        float cardY = h * 0.33f;
+        float cardX = w * 0.32f;
+        float cardW = w * 0.62f;
+        float cardH = h * 0.34f;
+        float cardY = h * 0.32f;
+
+        // Draw victory character on left
+        game.batch.begin();
+        com.badlogic.gdx.graphics.Texture winTex = game.texByteWin1 != null ? game.texByteWin1 : game.texPlayerIdle;
+        if (winTex != null) {
+            float charH = cardH * 1.35f;
+            float charW = charH * (float) winTex.getWidth() / (float) winTex.getHeight();
+            game.batch.draw(winTex, w * 0.08f, cardY - 10, charW, charH);
+        }
+        game.batch.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0.04f, 0.10f, 0.05f, 0.92f);
@@ -159,17 +196,20 @@ public class WinScreen implements Screen {
 
         drawButton(w * 0.12f, btnY, btnW, btnH, "REMATCH", 0x00c853, 0x0a5c28);
         if (isButtonClicked(w * 0.12f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 0.8f);
             game.fightScreen.resetFight();
             game.setScreen(game.fightScreen);
         }
 
         drawButton(w * 0.385f, btnY, btnW, btnH, "GALLERY", 0x7c4dff, 0x311b92);
         if (isButtonClicked(w * 0.385f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 0.8f);
             game.setScreen(game.galleryScreen);
         }
 
         drawButton(w * 0.65f, btnY, btnW, btnH, "MENU", 0x546e7a, 0x263238);
         if (isButtonClicked(w * 0.65f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 0.8f);
             game.setScreen(game.menuScreen);
         }
 

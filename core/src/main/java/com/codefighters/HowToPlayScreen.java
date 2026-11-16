@@ -25,7 +25,21 @@ public class HowToPlayScreen implements Screen {
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Grid background
+        // Background
+        game.batch.begin();
+        if (game.texBgMenu != null) {
+            game.batch.setColor(0.25f, 0.35f, 0.45f, 1f);
+            game.batch.draw(game.texBgMenu, 0, 0, w, h);
+            game.batch.setColor(1, 1, 1, 1);
+        }
+        game.batch.end();
+
+        // Cyber grid background
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        game.shapeRenderer.setColor(0, 0, 0, 0.65f);
+        game.shapeRenderer.rect(0, 0, w, h);
+        game.shapeRenderer.end();
+
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(0.08f, 0.08f, 0.16f, 1);
         for (int i = 0; i < w; i += 45) game.shapeRenderer.line(i, 0, i, h);
@@ -35,26 +49,39 @@ public class HowToPlayScreen implements Screen {
         // Title
         game.batch.begin();
         game.fontTitle.setColor(0.31f, 0.76f, 0.97f, 1);
-        game.drawTextCentered(game.fontTitle, "HOW TO PLAY", w / 2f, h * 0.92f);
+        game.drawTextCentered(game.fontTitle, "TACTICAL COMBAT GUIDE", w / 2f, h * 0.93f);
         game.batch.end();
 
         // Instruction Panels
-        float cardX = w * 0.08f;
-        float cardW = w * 0.84f;
-        float startY = h * 0.81f;
-        float rowH = h * 0.115f;
+        float cardX = w * 0.06f;
+        float cardW = w * 0.88f;
+        float startY = h * 0.82f;
+        float rowH = h * 0.105f;
 
-        drawInstructionRow(cardX, startY, cardW, rowH, "MOVE", "LEFT / RIGHT buttons or A/D keys to maneuver across the stage.", 0x00bcd4);
-        drawInstructionRow(cardX, startY - rowH * 1.15f, cardW, rowH, "ATTACK", "Tap ATK (or J key) for light strikes. Chain 3 hits for a combo!", 0xff1744);
-        drawInstructionRow(cardX, startY - rowH * 2.30f, cardW, rowH, "SPECIAL", "Tap SP (or K key) to launch a ranged code beam (18 DMG).", 0x00e5ff);
-        drawInstructionRow(cardX, startY - rowH * 3.45f, cardW, rowH, "BLOCK", "Hold BLK (or L key) to deploy firewall barrier, cutting damage by 70%.", 0xffeb3b);
-        drawInstructionRow(cardX, startY - rowH * 4.60f, cardW, rowH, "GOAL", "Neutralize WannaCry before your system health reaches 0%!", 0x00e676);
+        drawInstructionRow(cardX, startY, cardW, rowH,
+            "WALK", "LEFT / RIGHT buttons or A / D keys to walk across the stage.", 0x00bcd4);
+
+        drawInstructionRow(cardX, startY - rowH * 1.15f, cardW, rowH,
+            "DASH", "DOUBLE-TAP Left: Invincible Backdash! DOUBLE-TAP Right: Forward Dash into Dash Attack!", 0xff9800);
+
+        drawInstructionRow(cardX, startY - rowH * 2.30f, cardW, rowH,
+            "ATTACK", "Tap ATK (or J key) for light strikes. Chain 3 hits for combo! ATK during dash for Dash Attack (1.5x DMG)!", 0xff1744);
+
+        drawInstructionRow(cardX, startY - rowH * 3.45f, cardW, rowH,
+            "SPECIAL", "Tap SP (or K key) to unleash the Code Beam projectile (charges with combat).", 0x00e5ff);
+
+        drawInstructionRow(cardX, startY - rowH * 4.60f, cardW, rowH,
+            "BLOCK", "Hold BLK (or L key) to deploy cyber firewall, cutting all damage by 70%.", 0xffeb3b);
+
+        drawInstructionRow(cardX, startY - rowH * 5.75f, cardW, rowH,
+            "VERSUS 2P", "In Same-Device Versus, P1 fights on Left (Cyan) and P2 fights on Right (Orange) simultaneously!", 0x7c4dff);
 
         // Back button
-        float btnW = w * 0.32f;
-        float btnH = h * 0.082f;
-        drawButton(w / 2f - btnW / 2f, h * 0.045f, btnW, btnH, "BACK TO MENU", 0x546e7a, 0x263238);
-        if (isButtonClicked(w / 2f - btnW / 2f, h * 0.045f, btnW, btnH)) {
+        float btnW = w * 0.25f;
+        float btnH = h * 0.075f;
+        drawButton(w / 2f - btnW / 2f, h * 0.035f, btnW, btnH, "BACK TO MENU", 0x546e7a, 0x263238);
+        if (isButtonClicked(w / 2f - btnW / 2f, h * 0.035f, btnW, btnH)) {
+            game.playSound(game.sndMenuBack, 0.8f);
             game.setScreen(game.menuScreen);
         }
     }
@@ -103,12 +130,12 @@ public class HowToPlayScreen implements Screen {
         float b = (c & 0xFF) / 255f;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(r, g, b, hover ? 1f : 0.8f);
+        game.shapeRenderer.setColor(r, g, b, 0.85f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, 1f);
+        game.shapeRenderer.setColor(r * 1.3f, g * 1.3f, b * 1.3f, 1f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
@@ -124,9 +151,7 @@ public class HowToPlayScreen implements Screen {
         return mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
     }
 
-    @Override public void resize(int width, int height) {
-        game.updateFontScales();
-    }
+    @Override public void resize(int width, int height) { game.updateFontScales(); }
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}

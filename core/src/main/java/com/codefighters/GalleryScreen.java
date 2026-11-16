@@ -27,7 +27,21 @@ public class GalleryScreen implements Screen {
         Gdx.gl.glClearColor(0.03f, 0.03f, 0.08f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Cyberpunk background grid
+        // Background
+        game.batch.begin();
+        if (game.texBgGallery != null) {
+            game.batch.setColor(0.35f, 0.35f, 0.45f, 1f);
+            game.batch.draw(game.texBgGallery, 0, 0, w, h);
+            game.batch.setColor(1, 1, 1, 1);
+        }
+        game.batch.end();
+
+        // Dark overlay / Cyberpunk background grid
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        game.shapeRenderer.setColor(0, 0, 0, 0.65f);
+        game.shapeRenderer.rect(0, 0, w, h);
+        game.shapeRenderer.end();
+
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(0.08f, 0.10f, 0.20f, 1);
         for (int i = 0; i < w; i += 50) game.shapeRenderer.line(i, 0, i, h);
@@ -49,9 +63,18 @@ public class GalleryScreen implements Screen {
         drawTab(w * 0.365f, tabY, tabW, tabH, "THREATS", tab == 1);
         drawTab(w * 0.66f, tabY, tabW, tabH, "COMBOS", tab == 2);
 
-        if (isTabClicked(w * 0.07f, tabY, tabW, tabH)) tab = 0;
-        if (isTabClicked(w * 0.365f, tabY, tabW, tabH)) tab = 1;
-        if (isTabClicked(w * 0.66f, tabY, tabW, tabH)) tab = 2;
+        if (isTabClicked(w * 0.07f, tabY, tabW, tabH)) {
+            if (tab != 0) game.playSound(game.sndMenuNav, 0.7f);
+            tab = 0;
+        }
+        if (isTabClicked(w * 0.365f, tabY, tabW, tabH)) {
+            if (tab != 1) game.playSound(game.sndMenuNav, 0.7f);
+            tab = 1;
+        }
+        if (isTabClicked(w * 0.66f, tabY, tabW, tabH)) {
+            if (tab != 2) game.playSound(game.sndMenuNav, 0.7f);
+            tab = 2;
+        }
 
         float contentY = h * 0.82f;
         float contentH = h * 0.68f;
@@ -65,6 +88,7 @@ public class GalleryScreen implements Screen {
         float btnH = h * 0.075f;
         drawButton(w * 0.04f, h * 0.035f, btnW, btnH, "BACK", 0x546e7a, 0x263238);
         if (isButtonClicked(w * 0.04f, h * 0.035f, btnW, btnH)) {
+            game.playSound(game.sndMenuBack, 0.8f);
             game.setScreen(game.menuScreen);
         }
     }
@@ -119,6 +143,15 @@ public class GalleryScreen implements Screen {
         game.fontSmall.setColor(0.8f, 0.8f, 0.8f, 1f);
         game.fontSmall.draw(game.batch, c.specialDesc, textX, specY - 35, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
         game.batch.end();
+
+        // Dossier detail button
+        float dBtnW = 220;
+        float dBtnH = 48;
+        drawButton(cardX + cardW - dBtnW - 30, cardY + 25, dBtnW, dBtnH, "FULL DOSSIER >", 0x00bcd4, 0x006064);
+        if (isButtonClicked(cardX + cardW - dBtnW - 30, cardY + 25, dBtnW, dBtnH)) {
+            game.galleryDetailScreen.setEntity("cat");
+            game.setScreen(game.galleryDetailScreen);
+        }
     }
 
     void drawEnemiesTab(float w, float h, float contentY, float contentH) {
@@ -176,6 +209,14 @@ public class GalleryScreen implements Screen {
             game.fontSmall.draw(game.batch, e.realWorldFact, textX, factY - 35, cardW - spriteW - 90, com.badlogic.gdx.utils.Align.left, true);
         }
         game.batch.end();
+
+        float dBtnW = 220;
+        float dBtnH = 48;
+        drawButton(cardX + cardW - dBtnW - 30, cardY + 25, dBtnW, dBtnH, "FULL DOSSIER >", 0xff1744, 0xb71c1c);
+        if (isButtonClicked(cardX + cardW - dBtnW - 30, cardY + 25, dBtnW, dBtnH)) {
+            game.galleryDetailScreen.setEntity("wannacry");
+            game.setScreen(game.galleryDetailScreen);
+        }
     }
 
     void drawCombosTab(float w, float h, float contentY, float contentH) {

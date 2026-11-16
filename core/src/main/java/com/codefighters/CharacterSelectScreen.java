@@ -33,12 +33,21 @@ public class CharacterSelectScreen implements Screen {
         Gdx.gl.glClearColor(0.03f, 0.03f, 0.08f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Cyberpunk background grid
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.08f, 0.10f, 0.20f, 1);
-        for (int i = 0; i < w; i += 50) game.shapeRenderer.line(i, 0, i, h);
-        for (int i = 0; i < h; i += 50) game.shapeRenderer.line(0, i, w, i);
-        game.shapeRenderer.end();
+        // Background
+        game.batch.begin();
+        if (game.texBgCharSelect != null) {
+            game.batch.draw(game.texBgCharSelect, 0, 0, w, h);
+        }
+        game.batch.end();
+
+        // Cyberpunk background grid fallback
+        if (game.texBgCharSelect == null) {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(0.08f, 0.10f, 0.20f, 1);
+            for (int i = 0; i < w; i += 50) game.shapeRenderer.line(i, 0, i, h);
+            for (int i = 0; i < h; i += 50) game.shapeRenderer.line(0, i, w, i);
+            game.shapeRenderer.end();
+        }
 
         // Title Header
         game.batch.begin();
@@ -57,8 +66,14 @@ public class CharacterSelectScreen implements Screen {
 
         // === VS BADGE (Center) ===
         game.batch.begin();
-        game.fontTitle.setColor(1, 0.85f, 0.1f, 1);
-        game.drawTextCentered(game.fontTitle, "VS", w / 2f, cardY);
+        if (game.texVsBadge != null) {
+            float vsW = h * 0.11f;
+            float vsH = vsW * 0.65f;
+            game.batch.draw(game.texVsBadge, w / 2f - vsW / 2f, cardY - vsH / 2f, vsW, vsH);
+        } else {
+            game.fontTitle.setColor(1, 0.85f, 0.1f, 1);
+            game.drawTextCentered(game.fontTitle, "VS", w / 2f, cardY);
+        }
         game.batch.end();
 
         // === ENEMY CARD (Right) ===
@@ -108,11 +123,13 @@ public class CharacterSelectScreen implements Screen {
 
         drawButton(w * 0.18f, btnY, btnW, btnH, "BACK", 0x546e7a, 0x263238);
         if (isButtonClicked(w * 0.18f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuBack, 1.0f);
             game.setScreen(game.menuScreen);
         }
 
-        drawButton(w * 0.60f, btnY, btnW, btnH, "FIGHT!", 0x00c853, 0x0a5c28);
+        drawButton(w * 0.60f, btnY, btnW, btnH, "DEPLOY COMBAT", 0x00c853, 0x0a5c28);
         if (isButtonClicked(w * 0.60f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 1.0f);
             game.setScreen(game.vsScreen);
         }
     }
@@ -140,14 +157,19 @@ public class CharacterSelectScreen implements Screen {
 
         game.batch.begin();
         if (isPlayer) {
-            Texture tex = (isFrame2 && game.texPlayerIdle2 != null) ? game.texPlayerIdle2 : game.texPlayerIdle;
+            Texture tex = (isFrame2 && game.texByteIdle2 != null) ? game.texByteIdle2 : game.texByteIdle1;
+            if (tex == null) tex = game.texPlayerIdle;
             if (tex != null) game.batch.draw(tex, spriteX, spriteY, spriteW, spriteH);
         } else {
-            Texture tex = (isFrame2 && game.texEnemyIdle2 != null) ? game.texEnemyIdle2 : game.texEnemyIdle;
+            Texture tex = (isFrame2 && game.texWannaCryIdle2 != null) ? game.texWannaCryIdle2 : game.texWannaCryIdle1;
+            if (tex == null) tex = game.texEnemyIdle;
             if (tex != null) {
                 game.batch.draw(tex, spriteX, spriteY, spriteW, spriteH,
                     0, 0, tex.getWidth(), tex.getHeight(), true, false);
             }
+        }
+        if (game.texCharSelectFrameSelected != null) {
+            game.batch.draw(game.texCharSelectFrameSelected, x, y, w, h);
         }
         game.batch.end();
 

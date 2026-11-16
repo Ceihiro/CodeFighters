@@ -9,6 +9,8 @@ public class LoseScreen implements Screen {
     final CodeFightersGame game;
     float timer = 0;
 
+    boolean soundPlayed = false;
+
     public LoseScreen(final CodeFightersGame game) {
         this.game = game;
     }
@@ -17,6 +19,13 @@ public class LoseScreen implements Screen {
     public void show() {
         game.updateFontScales();
         timer = 0;
+        soundPlayed = false;
+        if (game.sndDefeatJingle != null) {
+            game.playSound(game.sndDefeatJingle, 0.85f);
+            soundPlayed = true;
+        } else if (game.sndAnnouncerKo != null) {
+            game.playSound(game.sndAnnouncerKo, 0.85f);
+        }
     }
 
     @Override
@@ -30,16 +39,17 @@ public class LoseScreen implements Screen {
 
         // Background
         game.batch.begin();
-        if (game.texBgFight != null) {
-            game.batch.setColor(0.45f, 0.12f, 0.12f, 1f);
-            game.batch.draw(game.texBgFight, 0, 0, w, h);
+        com.badlogic.gdx.graphics.Texture bg = game.texBgLose != null ? game.texBgLose : game.texBgFight;
+        if (bg != null) {
+            game.batch.setColor(0.55f, 0.15f, 0.15f, 1f);
+            game.batch.draw(bg, 0, 0, w, h);
             game.batch.setColor(1, 1, 1, 1);
         }
         game.batch.end();
 
         // Dark overlay
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0, 0, 0, 0.72f);
+        game.shapeRenderer.setColor(0, 0, 0, 0.65f);
         game.shapeRenderer.rect(0, 0, w, h);
         game.shapeRenderer.end();
 
@@ -124,17 +134,20 @@ public class LoseScreen implements Screen {
 
         drawButton(w * 0.11f, btnY, btnW, btnH, "TRY AGAIN", 0xff1744, 0x8a0b22);
         if (isButtonClicked(w * 0.11f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 0.8f);
             game.fightScreen.resetFight();
             game.setScreen(game.fightScreen);
         }
 
         drawButton(w * 0.38f, btnY, btnW, btnH, "GALLERY", 0x7c4dff, 0x311b92);
         if (isButtonClicked(w * 0.38f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 0.8f);
             game.setScreen(game.galleryScreen);
         }
 
         drawButton(w * 0.65f, btnY, btnW, btnH, "MAIN MENU", 0x546e7a, 0x263238);
         if (isButtonClicked(w * 0.65f, btnY, btnW, btnH)) {
+            game.playSound(game.sndMenuSelect, 0.8f);
             game.setScreen(game.menuScreen);
         }
 

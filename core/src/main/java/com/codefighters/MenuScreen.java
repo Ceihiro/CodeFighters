@@ -25,6 +25,7 @@ public class MenuScreen implements Screen {
         menuState = 0;
         idleTimer = 0;
         frame = 0;
+        game.playMusic(game.musicMenu, true);
     }
 
     @Override
@@ -101,17 +102,24 @@ public class MenuScreen implements Screen {
 
     void drawTitleScreen(float w, float h) {
         // Large Title Logo
-        float logoW = w * 0.65f;
-        float logoH = logoW * (624f / 1696f);
+        Texture titleTex = game.texTitleLogoLarge != null ? game.texTitleLogoLarge : game.texTitleLogo;
+        float logoW = Math.min(w * 0.70f, 620);
+        float logoH = (titleTex != null) ? logoW * ((float) titleTex.getHeight() / (float) titleTex.getWidth()) : logoW * 0.25f;
         float logoX = w / 2f - logoW / 2f;
         float logoY = h * 0.60f;
 
         game.batch.begin();
-        if (game.texTitleLogo != null) {
+        if (game.texTitleLogoGlow != null) {
+            float glowPulse = 0.5f + (float) Math.sin(frame * 0.05f) * 0.25f;
+            game.batch.setColor(1, 1, 1, glowPulse);
+            game.batch.draw(game.texTitleLogoGlow, logoX - 10, logoY - 10, logoW + 20, logoH + 20);
+            game.batch.setColor(1, 1, 1, 1);
+        }
+        if (titleTex != null) {
             float pulse = 1f + (float) Math.sin(frame * 0.035f) * 0.015f;
             float pw = logoW * pulse;
             float ph = logoH * pulse;
-            game.batch.draw(game.texTitleLogo, logoX + (logoW - pw) / 2f, logoY, pw, ph);
+            game.batch.draw(titleTex, logoX + (logoW - pw) / 2f, logoY, pw, ph);
         } else {
             game.fontTitle.setColor(0.31f, 0.76f, 0.97f, 1);
             game.drawTextCentered(game.fontTitle, "CODE FIGHTERS", w / 2f, logoY + logoH * 0.6f);
@@ -151,10 +159,11 @@ public class MenuScreen implements Screen {
         // Bottom credits
         game.batch.begin();
         game.fontSmall.setColor(0.5f, 0.5f, 0.5f, 1f);
-        game.drawTextCentered(game.fontSmall, "v1.0 Demo", w / 2f, h * 0.04f);
+        game.drawTextCentered(game.fontSmall, "v1.0.0", w / 2f, h * 0.04f);
         game.batch.end();
 
         if (Gdx.input.justTouched()) {
+            game.playSound(game.sndMenuSelect, 1.0f);
             menuState = 1;
             idleTimer = 0;
         }
@@ -162,14 +171,15 @@ public class MenuScreen implements Screen {
 
     void drawMainMenu(float w, float h) {
         // Title logo at top (compact)
-        float logoW = w * 0.48f;
-        float logoH = logoW * (624f / 1696f);
+        Texture titleTex = game.texTitleLogoLarge != null ? game.texTitleLogoLarge : game.texTitleLogo;
+        float logoW = Math.min(w * 0.52f, 480);
+        float logoH = (titleTex != null) ? logoW * ((float) titleTex.getHeight() / (float) titleTex.getWidth()) : logoW * 0.25f;
         float logoX = w / 2f - logoW / 2f;
         float logoY = h * 0.72f;
 
         game.batch.begin();
-        if (game.texTitleLogo != null) {
-            game.batch.draw(game.texTitleLogo, logoX, logoY, logoW, logoH);
+        if (titleTex != null) {
+            game.batch.draw(titleTex, logoX, logoY, logoW, logoH);
         } else {
             game.fontBold.setColor(0.31f, 0.76f, 0.97f, 1);
             game.drawTextCentered(game.fontBold, "CODE FIGHTERS", w / 2f, logoY + logoH / 2f);
@@ -177,37 +187,54 @@ public class MenuScreen implements Screen {
         game.batch.end();
 
         // Stacked menu buttons
-        float btnW = w * 0.48f;
-        float btnH = h * 0.092f;
+        float btnW = w * 0.44f;
+        float btnH = h * 0.078f;
         float btnX = w / 2f - btnW / 2f;
-        float startY = h * 0.58f;
-        float gap = btnH * 1.30f;
+        float startY = h * 0.65f;
+        float gap = btnH * 1.18f;
 
-        // 1. STORY MODE
-        drawMenuButton(btnX, startY, btnW, btnH, "STORY MODE", 0x00bcd4, 0x004d5a, true);
+        // 1. ARCADE MODE
+        drawMenuButton(btnX, startY, btnW, btnH, "ARCADE MODE", 0x00bcd4, 0x004d5a, true);
         if (isButtonClicked(btnX, startY, btnW, btnH)) {
-            game.setScreen(game.vsScreen);
+            game.currentMode = GameMode.ARCADE;
+            game.setScreen(game.charSelectScreen);
         }
 
-        // 2. GALLERY
-        drawMenuButton(btnX, startY - gap, btnW, btnH, "GALLERY", 0x7c4dff, 0x2e185c, false);
+        // 2. VERSUS MODE
+        drawMenuButton(btnX, startY - gap, btnW, btnH, "VERSUS MODE (2P)", 0xff9800, 0xbf360c, false);
         if (isButtonClicked(btnX, startY - gap, btnW, btnH)) {
+            game.currentMode = GameMode.VERSUS;
+            game.setScreen(game.versusCharSelectScreen);
+        }
+
+        // 3. GALLERY
+        drawMenuButton(btnX, startY - gap * 2, btnW, btnH, "GALLERY", 0x7c4dff, 0x2e185c, false);
+        if (isButtonClicked(btnX, startY - gap * 2, btnW, btnH)) {
             game.setScreen(game.galleryScreen);
         }
 
-        // 3. HOW TO PLAY
-        drawMenuButton(btnX, startY - gap * 2, btnW, btnH, "HOW TO PLAY", 0x26a69a, 0x0d473d, false);
-        if (isButtonClicked(btnX, startY - gap * 2, btnW, btnH)) {
+        // 4. HOW TO PLAY
+        drawMenuButton(btnX, startY - gap * 3, btnW, btnH, "HOW TO PLAY", 0x26a69a, 0x0d473d, false);
+        if (isButtonClicked(btnX, startY - gap * 3, btnW, btnH)) {
             game.setScreen(game.howToPlayScreen);
         }
 
-        // 4. SETTINGS
-        drawMenuButton(btnX, startY - gap * 3, btnW, btnH, "SETTINGS", 0x78909c, 0x263238, false);
+        // 5. SETTINGS
+        drawMenuButton(btnX, startY - gap * 4, btnW, btnH, "SETTINGS", 0x546e7a, 0x263238, false);
+        if (isButtonClicked(btnX, startY - gap * 4, btnW, btnH)) {
+            game.setScreen(game.settingsScreen);
+        }
+
+        // 6. CREDITS
+        drawMenuButton(btnX, startY - gap * 5, btnW, btnH, "CREDITS", 0x455a64, 0x1c2833, false);
+        if (isButtonClicked(btnX, startY - gap * 5, btnW, btnH)) {
+            game.setScreen(game.creditsScreen);
+        }
 
         // Footer
         game.batch.begin();
         game.fontSmall.setColor(0.5f, 0.5f, 0.5f, 1f);
-        game.drawTextCentered(game.fontSmall, "v1.0 Demo", w / 2f, h * 0.035f);
+        game.drawTextCentered(game.fontSmall, "v1.0.0", w / 2f, h * 0.028f);
         game.batch.end();
     }
 
@@ -216,28 +243,35 @@ public class MenuScreen implements Screen {
         float my = Gdx.graphics.getHeight() - Gdx.input.getY();
         boolean hover = mx >= x && mx <= x + bw && my >= y && my <= y + bh;
 
-        int col = hover ? activeCol : inactiveCol;
-        float r = ((col >> 16) & 0xFF) / 255f;
-        float g = ((col >> 8) & 0xFF) / 255f;
-        float b = (col & 0xFF) / 255f;
+        Texture btnTex = hover ? game.texBtnPressed : game.texBtnNormal;
+        if (btnTex != null) {
+            game.batch.begin();
+            game.batch.draw(btnTex, x, y, bw, bh);
+            game.batch.end();
+        } else {
+            int col = hover ? activeCol : inactiveCol;
+            float r = ((col >> 16) & 0xFF) / 255f;
+            float g = ((col >> 8) & 0xFF) / 255f;
+            float b = (col & 0xFF) / 255f;
 
-        // Button background
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(r, g, b, hover ? 0.95f : 0.75f);
-        game.shapeRenderer.rect(x, y, bw, bh);
-        game.shapeRenderer.end();
+            // Button background
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(r, g, b, hover ? 0.95f : 0.75f);
+            game.shapeRenderer.rect(x, y, bw, bh);
+            game.shapeRenderer.end();
 
-        // Left accent bar (thicker for featured)
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(r * 1.5f, g * 1.5f, b * 1.5f, 1f);
-        game.shapeRenderer.rect(x, y, featured ? 8 : 4, bh);
-        game.shapeRenderer.end();
+            // Left accent bar (thicker for featured)
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(r * 1.5f, g * 1.5f, b * 1.5f, 1f);
+            game.shapeRenderer.rect(x, y, featured ? 8 : 4, bh);
+            game.shapeRenderer.end();
 
-        // Border
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, hover ? 1f : 0.6f);
-        game.shapeRenderer.rect(x, y, bw, bh);
-        game.shapeRenderer.end();
+            // Border
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, hover ? 1f : 0.6f);
+            game.shapeRenderer.rect(x, y, bw, bh);
+            game.shapeRenderer.end();
+        }
 
         // Large, clear centered text
         game.batch.begin();
@@ -249,7 +283,9 @@ public class MenuScreen implements Screen {
     boolean isButtonClicked(float x, float y, float w, float h) {
         float mx = Gdx.input.getX();
         float my = Gdx.graphics.getHeight() - Gdx.input.getY();
-        return mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
+        boolean clicked = mx >= x && mx <= x + w && my >= y && my <= y + h && Gdx.input.justTouched();
+        if (clicked) game.playSound(game.sndMenuSelect, 0.9f);
+        return clicked;
     }
 
     @Override public void resize(int width, int height) {

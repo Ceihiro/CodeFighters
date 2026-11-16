@@ -1,6 +1,7 @@
 package com.codefighters;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -15,84 +16,115 @@ public class FightScreen implements Screen {
     final CodeFightersGame game;
     final Random rand = new Random();
 
-    // Stage dimensions (wider than single screen for SF-style camera panning)
+    // Mode
+    GameMode mode = GameMode.ARCADE;
+
+    // Stage & Dimensions
     float stageWidth;
     float stageHeight;
     float groundY;
 
-    // Cameras: world camera follows fighters with dynamic zoom/pan; hudCamera is fixed to screen
+    // Cameras
     OrthographicCamera worldCamera;
     OrthographicCamera hudCamera;
     float camX;
     float camZoom = 1.0f;
 
-    // Player
-    float playerX;
-    float playerY;
-    float playerVX = 0;
-    int playerHP = 100, playerMaxHP = 100;
-    String playerState = "IDLE";
-    int playerAnimTimer = 0;
-    int playerIdleFrame = 0;
-    int playerComboCount = 0;
-    int playerComboTimer = 0;
-    int playerInvuln = 0;
-    boolean playerBlock = false;
-    int playerSpecialCooldown = 0;
-    boolean playerAttackHeld = false;
-    boolean playerSpecialHeld = false;
-    float playerFacing = 1;
-    Hitbox playerHitbox = null;
-    int playerFlash = 0;
+    // --- Best of 3 Rounds System ---
+    int p1RoundsWon = 0;
+    int p2RoundsWon = 0;
+    int currentRound = 1;
+    static final int ROUNDS_TO_WIN = 2;
+    float roundTimer = 99.0f; // 99s round timer
 
-    // Enemy
-    float enemyX;
-    float enemyY;
-    float enemyVX = 0;
-    int enemyHP = 100, enemyMaxHP = 100;
-    String enemyState = "IDLE";
-    int enemyAnimTimer = 0;
-    int enemyIdleFrame = 0;
-    float enemyFacing = -1;
-    Hitbox enemyHitbox = null;
-    int enemyInvuln = 0;
-    int enemyAttackTimer = 60;
-    int enemyFlash = 0;
+    // Round banner / State machine
+    enum MatchState {
+        ROUND_INTRO,   // "ROUND 1", "FIGHT!"
+        FIGHTING,      // Active combat
+        ROUND_OVER,    // "K.O." / "TIME OVER"
+        MATCH_OVER     // "VICTORY" / Match End
+    }
+    MatchState matchState = MatchState.ROUND_INTRO;
+    int introSubPhase = 0; // 0 = ROUND X, 1 = FIGHT!
+    float bannerTimer = 0f;
+    String bannerText = "ROUND 1";
+    String matchWinnerText = "";
 
+    // In-fight Pause Menu
+    boolean isPaused = false;
+
+    // --- Player 1 (Cat / Cyan) ---
+    float p1X, p1Y, p1VX;
+    int p1HP = 100, p1MaxHP = 100;
+    float p1DisplayHP = 100f; // for smooth health drain animation
+    float p1SuperGauge = 0f;  // 0 to 100
+    int p1SuperLevel = 0;     // 0 to 3
+    String p1State = "IDLE";
+    int p1AnimTimer = 0;
+    int p1IdleFrame = 0;
+    float p1Facing = 1f;
+    int p1InvincibleTimer = 0;
+    boolean p1Block = false;
+    int p1Flash = 0;
+    int p1ComboCount = 0;
+    int p1ComboTimer = 0;
+    Hitbox p1Hitbox = null;
+    // Dash system P1
+    float p1LastLeftTapTime = -10f;
+    float p1LastRightTapTime = -10f;
+    float p1DashCooldown = 0f;
+    boolean p1IsDashing = false;
+    float p1DashTimer = 0f;
+    boolean p1DashForward = true;
+    boolean p1LowHpAlerted = false;
+
+    // --- Player 2 / AI (WannaCry in Arcade, Cat Orange in Versus) ---
+    float p2X, p2Y, p2VX;
+    int p2HP = 100, p2MaxHP = 100;
+    float p2DisplayHP = 100f;
+    float p2SuperGauge = 0f;
+    int p2SuperLevel = 0;
+    String p2State = "IDLE";
+    int p2AnimTimer = 0;
+    int p2IdleFrame = 0;
+    float p2Facing = -1f;
+    int p2InvincibleTimer = 0;
+    boolean p2Block = false;
+    int p2Flash = 0;
+    int p2ComboCount = 0;
+    int p2ComboTimer = 0;
+    Hitbox p2Hitbox = null;
+    // AI specific
+    int p2AttackCooldown = 50;
+    // Dash system P2
+    float p2LastLeftTapTime = -10f;
+    float p2LastRightTapTime = -10f;
+    float p2DashCooldown = 0f;
+    boolean p2IsDashing = false;
+    float p2DashTimer = 0f;
+    boolean p2DashForward = true;
+
+    // Combat effects & lists
     List<Projectile> projectiles = new ArrayList<>();
     List<Particle> particles = new ArrayList<>();
-
-    int comboCount = 0;
-    int comboTimer = 0;
-    float comboX = 0, comboY = 0;
-    float comboScale = 1f;
+    List<FloatingNotice> notices = new ArrayList<>();
+    List<GhostTrail> ghostTrails = new ArrayList<>();
 
     int hitPause = 0;
     int frame = 0;
-
-    // Screen shake
     float shakeX = 0, shakeY = 0;
     int shakeTimer = 0;
 
-    // Touch button bounds (in screen coordinates)
-    float btnLeftX, btnLeftY, btnRightX, btnRightY;
-    float btnAtkX, btnAtkY, btnSplX, btnSplY, btnBlkX, btnBlkY;
-    float btnSize;
-
-    // Touch state tracking
-    boolean attackWasPressed = false;
-    boolean specialWasPressed = false;
-
-    // Round announcement / intro phase
-    int introPhase = 0; // 0 = ROUND 1, 1 = FIGHT!, 2 = fighting
-    float introTimer = 0;
-    static final float ROUND_BANNER_DURATION = 1.3f;
-    static final float FIGHT_BANNER_DURATION = 0.85f;
-
     // Fight stats
-    float fightTime = 0;
-    int maxCombo = 0;
-    int totalDamageDealt = 0;
+    float totalFightTime = 0f;
+    int maxComboAchieved = 0;
+    int totalDamageDealtP1 = 0;
+
+    // Touch button tracking
+    boolean p1LeftWasPressed = false, p1RightWasPressed = false;
+    boolean p1AtkWasPressed = false, p1SplWasPressed = false;
+    boolean p2LeftWasPressed = false, p2RightWasPressed = false;
+    boolean p2AtkWasPressed = false, p2SplWasPressed = false;
 
     public FightScreen(final CodeFightersGame game) {
         this.game = game;
@@ -100,34 +132,64 @@ public class FightScreen implements Screen {
         hudCamera = new OrthographicCamera();
     }
 
+    public void setMode(GameMode mode) {
+        this.mode = mode;
+        this.p1RoundsWon = 0;
+        this.p2RoundsWon = 0;
+        this.currentRound = 1;
+        this.totalFightTime = 0f;
+        this.maxComboAchieved = 0;
+        this.totalDamageDealtP1 = 0;
+        resetRound(true);
+    }
+
     public void resetFight() {
+        setMode(this.mode != null ? this.mode : GameMode.ARCADE);
+    }
+
+    public void resetRound(boolean isNewMatch) {
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
 
-        stageWidth = w * 1.8f;
+        stageWidth = w * 1.85f;
         stageHeight = h;
-        groundY = h * 0.20f; // Ground plane at 20% height, firmly on floor
+        groundY = h * 0.20f;
 
-        playerX = stageWidth * 0.38f;
-        enemyX = stageWidth * 0.62f;
-        playerY = groundY;
-        enemyY = groundY;
+        p1X = stageWidth * 0.36f;
+        p2X = stageWidth * 0.64f;
+        p1Y = groundY;
+        p2Y = groundY;
+        p1VX = 0; p2VX = 0;
 
-        playerHP = 100; playerVX = 0;
-        playerState = "IDLE"; playerComboCount = 0; playerInvuln = 0;
-        playerBlock = false; playerSpecialCooldown = 0; playerFlash = 0;
-        playerFacing = 1; playerIdleFrame = 0;
+        p1HP = 100; p1DisplayHP = 100f;
+        p2HP = 100; p2DisplayHP = 100f;
+        if (isNewMatch) {
+            p1SuperGauge = 20f;
+            p2SuperGauge = 20f;
+        }
 
-        enemyHP = 100; enemyVX = 0;
-        enemyState = "IDLE"; enemyInvuln = 0; enemyAttackTimer = 60; enemyFlash = 0;
-        enemyFacing = -1; enemyIdleFrame = 0;
+        p1State = "IDLE"; p1AnimTimer = 0; p1InvincibleTimer = 0; p1Block = false; p1Flash = 0;
+        p1Facing = 1f; p1ComboCount = 0; p1Hitbox = null; p1IsDashing = false; p1DashCooldown = 0f;
+
+        p2State = "IDLE"; p2AnimTimer = 0; p2InvincibleTimer = 0; p2Block = false; p2Flash = 0;
+        p2Facing = -1f; p2ComboCount = 0; p2Hitbox = null; p2IsDashing = false; p2DashCooldown = 0f;
+        p2AttackCooldown = 45;
 
         projectiles.clear();
         particles.clear();
-        comboCount = 0; comboTimer = 0; hitPause = 0; frame = 0;
-        shakeX = 0; shakeY = 0; shakeTimer = 0;
+        notices.clear();
+        ghostTrails.clear();
 
-        camX = (playerX + enemyX) / 2.0f;
+        roundTimer = 99.0f;
+        matchState = MatchState.ROUND_INTRO;
+        introSubPhase = 0;
+        bannerTimer = 0f;
+        bannerText = (currentRound == 1) ? "ROUND 1" : (currentRound == 2 ? "ROUND 2" : "FINAL ROUND");
+        isPaused = false;
+        p1LowHpAlerted = false;
+        game.playSound(game.sndRoundStart, 1.0f);
+
+        camX = (p1X + p2X) / 2.0f;
         camZoom = 1.0f;
 
         worldCamera.setToOrtho(false, w, h);
@@ -138,18 +200,13 @@ public class FightScreen implements Screen {
         hudCamera.setToOrtho(false, w, h);
         hudCamera.position.set(w / 2f, h / 2f, 0);
         hudCamera.update();
-
-        introPhase = 0;
-        introTimer = 0;
-        fightTime = 0;
-        maxCombo = 0;
-        totalDamageDealt = 0;
     }
 
     @Override
     public void show() {
         game.updateFontScales();
-        resetFight();
+        if (matchState == null) resetFight();
+        game.playMusic(game.musicFight, true);
     }
 
     @Override
@@ -157,9 +214,9 @@ public class FightScreen implements Screen {
         float w = Gdx.graphics.getWidth();
         float h = Gdx.graphics.getHeight();
 
-        // Update camera sizing if window dimensions change
+        // Handle window resizing
         if (worldCamera.viewportWidth != w || worldCamera.viewportHeight != h) {
-            stageWidth = w * 1.8f;
+            stageWidth = w * 1.85f;
             stageHeight = h;
             groundY = h * 0.20f;
             worldCamera.setToOrtho(false, w, h);
@@ -168,70 +225,170 @@ public class FightScreen implements Screen {
             hudCamera.update();
         }
 
-        // --- Intro announcement phase ---
-        if (introPhase < 2) {
-            introTimer += delta;
-            if (introPhase == 0 && introTimer >= ROUND_BANNER_DURATION) {
-                introPhase = 1;
-                introTimer = 0;
-            } else if (introPhase == 1 && introTimer >= FIGHT_BANNER_DURATION) {
-                introPhase = 2;
-                introTimer = 0;
+        // Toggle pause via keyboard
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.P)) {
+            if (matchState == MatchState.FIGHTING) {
+                isPaused = !isPaused;
             }
-            updateCamera(w, h);
-            drawFightWorld(w, h);
+        }
+
+        // Smooth health bar drain animation (Street Fighter delayed yellow damage gauge)
+        if (p1DisplayHP > p1HP) {
+            p1DisplayHP -= (p1DisplayHP - p1HP) * 0.08f + 0.15f;
+            if (p1DisplayHP < p1HP) p1DisplayHP = p1HP;
+        }
+        if (p2DisplayHP > p2HP) {
+            p2DisplayHP -= (p2DisplayHP - p2HP) * 0.08f + 0.15f;
+            if (p2DisplayHP < p2HP) p2DisplayHP = p2HP;
+        }
+
+        // Super Art Gauge calculation (100 gauge per bar)
+        p1SuperLevel = (int) (p1SuperGauge / 33.34f);
+        p2SuperLevel = (int) (p2SuperGauge / 33.34f);
+
+        // State Machine Handling
+        if (isPaused) {
+            drawFightWorld(h);
             drawFightHUD(w, h);
-            drawIntroBanner(w, h);
+            drawPauseOverlay(w, h);
             return;
         }
 
-        // --- Normal fight loop ---
-        fightTime += delta;
+        if (matchState == MatchState.ROUND_INTRO) {
+            bannerTimer += delta;
+            if (introSubPhase == 0) {
+                bannerText = (currentRound == 1) ? "ROUND 1" : (currentRound == 2 ? "ROUND 2" : "FINAL ROUND");
+                if (bannerTimer >= 1.25f) {
+                    introSubPhase = 1;
+                    bannerTimer = 0f;
+                    bannerText = "FIGHT!";
+                    game.playSound(game.sndAnnouncerFight, 1.0f);
+                }
+            } else if (introSubPhase == 1) {
+                if (bannerTimer >= 0.85f) {
+                    matchState = MatchState.FIGHTING;
+                    bannerTimer = 0f;
+                }
+            }
+            updateCamera(w, h);
+            drawFightWorld(h);
+            drawFightHUD(w, h);
+            drawRoundBanner(w, h);
+            return;
+        }
+
+        if (matchState == MatchState.ROUND_OVER) {
+            bannerTimer += delta;
+            updateCamera(w, h);
+            drawFightWorld(h);
+            drawFightHUD(w, h);
+            drawRoundBanner(w, h);
+
+            if (bannerTimer >= 2.2f) {
+                if (p1RoundsWon >= ROUNDS_TO_WIN) {
+                    matchState = MatchState.MATCH_OVER;
+                    matchWinnerText = (mode == GameMode.VERSUS) ? "PLAYER 1 WINS!" : "VICTORY!";
+                    bannerTimer = 0f;
+                    game.playSound(game.sndAnnouncerWinner, 1.0f);
+                    if (mode == GameMode.ARCADE) {
+                        game.progress.markDefeated("wannacry");
+                        game.winScreen.setStats(totalFightTime, maxComboAchieved, totalDamageDealtP1);
+                        game.setScreen(game.winScreen);
+                        return;
+                    }
+                } else if (p2RoundsWon >= ROUNDS_TO_WIN) {
+                    matchState = MatchState.MATCH_OVER;
+                    matchWinnerText = (mode == GameMode.VERSUS) ? "PLAYER 2 WINS!" : "DEFEAT!";
+                    bannerTimer = 0f;
+                    game.playSound(game.sndAnnouncerWinner, 1.0f);
+                    if (mode == GameMode.ARCADE) {
+                        game.setScreen(game.loseScreen);
+                        return;
+                    }
+                } else {
+                    currentRound++;
+                    resetRound(false);
+                }
+            }
+            return;
+        }
+
+        if (matchState == MatchState.MATCH_OVER) {
+            bannerTimer += delta;
+            updateCamera(w, h);
+            drawFightWorld(h);
+            drawFightHUD(w, h);
+            drawMatchOverBanner(w, h);
+            return;
+        }
+
+        // --- Active Combat Loop ---
+        totalFightTime += delta;
+
+        // Timer decrement
+        roundTimer -= delta;
+        if (roundTimer <= 0) {
+            roundTimer = 0;
+            // Time Out!
+            if (p1HP > p2HP) {
+                p1RoundsWon++;
+                bannerText = "TIME OVER\nPLAYER 1 WINS";
+            } else if (p2HP > p1HP) {
+                p2RoundsWon++;
+                bannerText = (mode == GameMode.VERSUS) ? "TIME OVER\nPLAYER 2 WINS" : "TIME OVER\nWANNACRY WINS";
+            } else {
+                bannerText = "TIME OVER\nDRAW";
+            }
+            matchState = MatchState.ROUND_OVER;
+            bannerTimer = 0f;
+            game.playSound(game.sndTimeOver, 1.0f);
+            return;
+        }
+
+        // Hit pause frame freeze (gives impactful weight to hits)
         if (hitPause > 0) {
             hitPause--;
             updateCamera(w, h);
-            drawFightWorld(w, h);
+            drawFightWorld(h);
             drawFightHUD(w, h);
             return;
         }
 
         frame++;
-        updateFight(w, h);
+        updateCombat(w, h, delta);
         updateCamera(w, h);
-        drawFightWorld(w, h);
+        drawFightWorld(h);
         drawFightHUD(w, h);
     }
 
     void updateCamera(float w, float h) {
-        // Dynamic midpoint tracking
-        float midX = (playerX + enemyX) / 2.0f;
-        float dist = Math.abs(playerX - enemyX);
+        float midX = (p1X + p2X) / 2.0f;
+        float dist = Math.abs(p1X - p2X);
 
-        // Dynamic Zoom (Street Fighter style: zooms in when close, zooms out when far)
+        // Street Fighter dynamic zoom: pull in when close, pull out when retreating
         float targetZoom = 1.0f;
-        if (dist < w * 0.35f) {
-            targetZoom = 0.90f; // Zoom in close for brawl
-        } else if (dist > w * 0.55f) {
-            targetZoom = 1.0f + ((dist - w * 0.55f) / (w * 0.8f)) * 0.22f;
-            targetZoom = Math.min(1.18f, targetZoom);
+        if (dist < w * 0.32f) {
+            targetZoom = 0.90f;
+        } else if (dist > w * 0.48f) {
+            targetZoom = 1.0f + ((dist - w * 0.48f) / (w * 0.9f)) * 0.28f;
+            targetZoom = Math.min(1.28f, targetZoom);
         }
 
-        // Smooth camera lerp
-        camX += (midX - camX) * 0.08f;
-        camZoom += (targetZoom - camZoom) * 0.05f;
+        camZoom += (targetZoom - camZoom) * 0.10f;
+        float halfVisW = (w * camZoom) / 2.0f;
+        float targetCamX = Math.max(halfVisW, Math.min(stageWidth - halfVisW, midX));
+        camX += (targetCamX - camX) * 0.22f; // Responsive camera tracking
+        camX = Math.max(halfVisW, Math.min(stageWidth - halfVisW, camX));
 
-        // Camera clamp inside stage boundaries
-        float halfVisibleW = (w * camZoom) / 2.0f;
-        camX = Math.max(halfVisibleW, Math.min(stageWidth - halfVisibleW, camX));
-
-        // Screen shake decay
         if (shakeTimer > 0) {
             shakeTimer--;
-            shakeX = (rand.nextFloat() - 0.5f) * shakeTimer * 0.9f;
-            shakeY = (rand.nextFloat() - 0.5f) * shakeTimer * 0.9f;
+            boolean shake = (game.settingsScreen != null) ? game.settingsScreen.screenShake : true;
+            if (shake) {
+                shakeX = (rand.nextFloat() - 0.5f) * shakeTimer * 1.1f;
+                shakeY = (rand.nextFloat() - 0.5f) * shakeTimer * 1.1f;
+            }
         } else {
-            shakeX = 0;
-            shakeY = 0;
+            shakeX = 0; shakeY = 0;
         }
 
         worldCamera.position.set(camX + shakeX, h / 2f + shakeY, 0);
@@ -239,310 +396,650 @@ public class FightScreen implements Screen {
         worldCamera.update();
     }
 
-    void updateFight(float w, float h) {
-        playerY = groundY;
-        enemyY = groundY;
+    void updateCombat(float w, float h, float delta) {
+        p1Y = groundY;
+        p2Y = groundY;
 
-        playerIdleFrame++;
-        enemyIdleFrame++;
+        p1IdleFrame++;
+        p2IdleFrame++;
 
-        if (playerFlash > 0) playerFlash--;
-        if (enemyFlash > 0) enemyFlash--;
+        if (p1Flash > 0) p1Flash--;
+        if (p2Flash > 0) p2Flash--;
+        if (p1InvincibleTimer > 0) p1InvincibleTimer--;
+        if (p2InvincibleTimer > 0) p2InvincibleTimer--;
 
-        // Touch button layout (ergonomic arcade layout)
-        btnSize = h * 0.135f;
-        float padY = h * 0.045f;
-        btnLeftX = w * 0.04f; btnLeftY = padY;
-        btnRightX = w * 0.17f; btnRightY = padY;
+        if (p1DashCooldown > 0) p1DashCooldown -= delta;
+        if (p2DashCooldown > 0) p2DashCooldown -= delta;
 
-        btnAtkX = w * 0.65f; btnAtkY = padY;
-        btnSplX = w * 0.77f; btnSplY = padY + btnSize * 0.45f;
-        btnBlkX = w * 0.88f; btnBlkY = padY;
-
-        // Handle touch input
-        boolean touchLeft = false, touchRight = false;
-        boolean touchAttack = false, touchSpecial = false, touchBlock = false;
-
-        for (int i = 0; i < 5; i++) {
-            if (Gdx.input.isTouched(i)) {
-                float tx = Gdx.input.getX(i);
-                float ty = Gdx.graphics.getHeight() - Gdx.input.getY(i);
-
-                if (tx >= btnLeftX && tx <= btnLeftX + btnSize && ty >= btnLeftY && ty <= btnLeftY + btnSize) touchLeft = true;
-                if (tx >= btnRightX && tx <= btnRightX + btnSize && ty >= btnRightY && ty <= btnRightY + btnSize) touchRight = true;
-                if (tx >= btnAtkX && tx <= btnAtkX + btnSize && ty >= btnAtkY && ty <= btnAtkY + btnSize) touchAttack = true;
-                if (tx >= btnSplX && tx <= btnSplX + btnSize && ty >= btnSplY && ty <= btnSplY + btnSize) touchSpecial = true;
-                if (tx >= btnBlkX && tx <= btnBlkX + btnSize && ty >= btnBlkY && ty <= btnBlkY + btnSize) touchBlock = true;
-            }
+        // Auto face each other when neutral (with deadzone so crossing over doesn't cause rapid flipping)
+        if (!p1IsDashing && (p1State.equals("IDLE") || p1State.equals("WALK"))) {
+            if (p1X < p2X - 12f) p1Facing = 1f;
+            else if (p1X > p2X + 12f) p1Facing = -1f;
         }
-
-        boolean left = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.LEFT) || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.A) || touchLeft;
-        boolean right = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.RIGHT) || Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.D) || touchRight;
-        boolean attack = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.J) || (touchAttack && !attackWasPressed);
-        boolean special = Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.K) || (touchSpecial && !specialWasPressed);
-        boolean block = Gdx.input.isKeyPressed(com.badlogic.gdx.Input.Keys.L) || touchBlock;
-
-        if (touchAttack && !attackWasPressed) attack = true;
-        if (touchSpecial && !specialWasPressed) special = true;
-        attackWasPressed = touchAttack;
-        specialWasPressed = touchSpecial;
-
-        playerBlock = block && !playerState.startsWith("ATTACK") && !playerState.equals("SPECIAL") && !playerState.equals("HIT");
-
-        if (playerInvuln > 0) playerInvuln--;
-        if (playerSpecialCooldown > 0) playerSpecialCooldown--;
-        if (playerComboTimer > 0) {
-            playerComboTimer--;
-            if (playerComboTimer <= 0) playerComboCount = 0;
-        }
-
-        // Auto-facing: turn toward enemy when neutral
-        if (playerState.equals("IDLE") || playerState.equals("WALK")) {
-            playerFacing = (playerX <= enemyX) ? 1 : -1;
+        if (!p2IsDashing && (p2State.equals("IDLE") || p2State.equals("WALK"))) {
+            if (p2X < p1X - 12f) p2Facing = 1f;
+            else if (p2X > p1X + 12f) p2Facing = -1f;
         }
 
         float charW = h * 0.52f;
         float hitH = h * 0.35f;
 
-        // Movement with footsteps
-        if (!playerBlock && (playerState.equals("IDLE") || playerState.equals("WALK"))) {
-            if (left) {
-                playerVX = -5f;
-                playerState = "WALK";
-                if (playerIdleFrame % 14 == 0) spawnParticles(playerX, playerY + 4, 0x00bcd4, 2);
-            } else if (right) {
-                playerVX = 5f;
-                playerState = "WALK";
-                if (playerIdleFrame % 14 == 0) spawnParticles(playerX, playerY + 4, 0x00bcd4, 2);
-            } else {
-                playerVX = 0;
-                playerState = "IDLE";
-            }
-        }
+        // Process Inputs for Player 1 and Player 2
+        processPlayer1Input(w, h, delta, charW, hitH);
 
-        // Player state machine with kinetic animation lunges
-        if (playerState.startsWith("ATTACK")) {
-            playerAnimTimer++;
-            // Kinetic forward surge during startup
-            if (playerAnimTimer <= 5) {
-                playerVX = playerFacing * 2.5f;
-            } else {
-                playerVX = 0;
-            }
-
-            if (playerAnimTimer == 5) {
-                float hitX = playerFacing > 0 ? playerX + charW * 0.2f : playerX - charW * 0.5f;
-                int dmg = playerState.equals("ATTACK2") ? 10 : (playerState.equals("ATTACK3") ? 14 : 7);
-                playerHitbox = new Hitbox(hitX, playerY, charW * 0.45f, hitH, dmg, 16);
-            }
-            if (playerAnimTimer == 13) playerHitbox = null;
-            if (playerAnimTimer > 19) { playerState = "IDLE"; playerAnimTimer = 0; }
-        } else if (playerState.equals("SPECIAL")) {
-            playerAnimTimer++;
-            // Charging particles gathering at hands
-            if (playerAnimTimer < 10) {
-                float handX = playerX + playerFacing * (charW * 0.30f);
-                float handY = playerY + charW * 0.35f;
-                particles.add(new Particle(
-                    handX + (rand.nextFloat() - 0.5f) * 35,
-                    handY + (rand.nextFloat() - 0.5f) * 35,
-                    (handX - (handX + (rand.nextFloat() - 0.5f) * 35)) * 0.2f,
-                    (handY - (handY + (rand.nextFloat() - 0.5f) * 35)) * 0.2f,
-                    0x00e5ff, 4, 15
-                ));
-                playerVX = 0;
-            } else if (playerAnimTimer == 10) {
-                float projX = playerX + playerFacing * (charW * 0.35f);
-                float projY = playerY + charW * 0.35f;
-                projectiles.add(new Projectile(projX, projY, playerFacing * 10f, 18));
-                game.playSound(game.sndSpecialFire, 0.75f);
-                // Blast recoil impulse!
-                playerVX = -playerFacing * 4f;
-            } else {
-                playerVX *= 0.8f;
-            }
-            if (playerAnimTimer > 30) { playerState = "IDLE"; playerAnimTimer = 0; }
-        } else if (playerState.equals("HIT")) {
-            playerAnimTimer++;
-            playerVX *= 0.85f;
-            if (playerAnimTimer > 16) { playerState = "IDLE"; playerAnimTimer = 0; }
+        if (mode == GameMode.VERSUS) {
+            processPlayer2VersusInput(w, h, delta, charW, hitH);
         } else {
-            if (attack && !playerAttackHeld) {
-                playerAttackHeld = true;
-                if (playerComboCount == 0) {
-                    playerState = "ATTACK1"; playerAnimTimer = 0; playerComboCount = 1; playerComboTimer = 40;
-                } else if (playerComboCount == 1 && playerComboTimer > 0) {
-                    playerState = "ATTACK2"; playerAnimTimer = 0; playerComboCount = 2; playerComboTimer = 40;
-                } else {
-                    playerState = "ATTACK3"; playerAnimTimer = 0; playerComboCount = 3; playerComboTimer = 40;
-                }
-            }
-            if (!attack) playerAttackHeld = false;
-
-            if (special && !playerSpecialHeld && playerSpecialCooldown == 0) {
-                playerSpecialHeld = true;
-                playerState = "SPECIAL"; playerAnimTimer = 0; playerSpecialCooldown = 80;
-            }
-            if (!special) playerSpecialHeld = false;
+            processEnemyAI(charW, hitH);
         }
 
-        playerX += playerVX;
+        // Apply velocities
+        p1X += p1VX;
+        p2X += p2VX;
 
-        // Enemy AI & Animation states
-        if (enemyInvuln > 0) enemyInvuln--;
-        enemyAttackTimer--;
+        // Stage bounds (absolute physical walls of the arena)
+        float stageLeft = charW * 0.25f;
+        float stageRight = stageWidth - charW * 0.25f;
+        p1X = Math.max(stageLeft, Math.min(stageRight, p1X));
+        p2X = Math.max(stageLeft, Math.min(stageRight, p2X));
 
-        float distToPlayer = playerX - enemyX;
-        enemyFacing = distToPlayer >= 0 ? 1 : -1;
-
-        if (enemyState.equals("IDLE") || enemyState.equals("WALK")) {
-            if (Math.abs(distToPlayer) > charW * 0.45f) {
-                enemyVX = enemyFacing * 2.4f;
-                enemyState = "WALK";
-                if (enemyIdleFrame % 14 == 0) spawnParticles(enemyX, enemyY + 4, 0xff1744, 2);
-            } else {
-                enemyVX = 0;
-                enemyState = "IDLE";
-                if (enemyAttackTimer <= 0) {
-                    enemyState = "ATTACK"; enemyAnimTimer = 0;
-                    enemyAttackTimer = 55 + rand.nextInt(35);
-                }
-            }
-        } else if (enemyState.equals("ATTACK")) {
-            enemyAnimTimer++;
-            // Enemy forward step into strike
-            if (enemyAnimTimer >= 10 && enemyAnimTimer <= 16) {
-                enemyVX = enemyFacing * 3.0f;
-            } else {
-                enemyVX = 0;
-            }
-
-            if (enemyAnimTimer == 15) {
-                float hitX = enemyFacing > 0 ? enemyX + charW * 0.2f : enemyX - charW * 0.5f;
-                enemyHitbox = new Hitbox(hitX, enemyY, charW * 0.45f, hitH, 10, 20);
-                game.playSound(game.sndHitPunch, 0.7f);
-            }
-            if (enemyAnimTimer == 28) enemyHitbox = null;
-            if (enemyAnimTimer > 38) { enemyState = "IDLE"; enemyAnimTimer = 0; }
-        } else if (enemyState.equals("HIT")) {
-            enemyAnimTimer++;
-            enemyVX *= 0.85f;
-            if (enemyAnimTimer > 15) { enemyState = "IDLE"; enemyAnimTimer = 0; }
-        }
-
-        enemyX += enemyVX;
-
-        // Corner boundaries and stage clamping
-        float halfVisibleW = (w * camZoom) / 2.0f;
-        float leftCorner = Math.max(charW * 0.35f, camX - halfVisibleW + charW * 0.25f);
-        float rightCorner = Math.min(stageWidth - charW * 0.35f, camX + halfVisibleW - charW * 0.25f);
-
-        playerX = Math.max(leftCorner, Math.min(rightCorner, playerX));
-        enemyX = Math.max(leftCorner, Math.min(rightCorner, enemyX));
-
-        // Projectiles update
+        // Update Projectiles
         Iterator<Projectile> pit = projectiles.iterator();
         while (pit.hasNext()) {
             Projectile p = pit.next();
             p.x += p.vx;
-            float hitBoxW = charW * 0.3f;
-            if (p.active && Math.abs(p.x - enemyX) < hitBoxW && p.y >= enemyY && p.y <= enemyY + charW * 0.7f) {
-                if (enemyInvuln == 0) {
-                    enemyHP -= p.damage;
-                    enemyState = "HIT"; enemyAnimTimer = 0; enemyInvuln = 12; enemyFlash = 10;
-                    game.playSound(game.sndDamageGlitch, 0.7f);
-                    spawnCodeBurst(enemyX, enemyY + charW * 0.4f);
-                    hitPause = 8; shakeTimer = 10;
-                    comboCount++; comboTimer = 65; comboX = enemyX; comboY = enemyY + charW * 0.8f;
-                    comboScale = 1.5f;
-                    totalDamageDealt += p.damage;
-                    if (comboCount > maxCombo) maxCombo = comboCount;
+            // Check collision with opponent
+            boolean isP1Bullet = (p.vx > 0 && p1Facing > 0) || (p.vx < 0 && p1Facing < 0);
+            float targetX = isP1Bullet ? p2X : p1X;
+            float targetY = isP1Bullet ? p2Y : p1Y;
+            boolean targetInvincible = isP1Bullet ? (p2InvincibleTimer > 0) : (p1InvincibleTimer > 0);
+            boolean targetBlock = isP1Bullet ? p2Block : p1Block;
+
+            if (p.active && Math.abs(p.x - targetX) < charW * 0.32f && p.y >= targetY && p.y <= targetY + charW * 0.75f) {
+                if (!targetInvincible) {
+                    int dmg = p.damage;
+                    if (targetBlock) {
+                        dmg = (int)(dmg * 0.3f);
+                        game.playSound(game.sndBlockShield, 0.7f * game.settingsScreen.sfxVolume);
+                        spawnParticles(targetX, targetY + charW * 0.4f, 0xffff00, 8);
+                        addNotice("BLOCKED", targetX, targetY + charW * 0.8f, 0xffff00);
+                    } else {
+                        game.playSound(game.sndDamageGlitch, 0.8f * game.settingsScreen.sfxVolume);
+                        spawnParticles(targetX, targetY + charW * 0.4f, 0x00e5ff, 14);
+                        hitPause = 7;
+                        shakeTimer = 9;
+                        addNotice("PUNISH!", targetX, targetY + charW * 0.8f, 0x00e5ff);
+                    }
+
+                    if (isP1Bullet) {
+                        p2HP -= dmg;
+                        p2State = "HIT"; p2AnimTimer = 0; p2InvincibleTimer = 14; p2Flash = 10;
+                        p1SuperGauge = Math.min(100f, p1SuperGauge + 15f);
+                        totalDamageDealtP1 += dmg;
+                    } else {
+                        p1HP -= dmg;
+                        p1State = "HIT"; p1AnimTimer = 0; p1InvincibleTimer = 14; p1Flash = 10;
+                        p2SuperGauge = Math.min(100f, p2SuperGauge + 15f);
+                    }
                 }
                 p.active = false;
             }
             if (p.x < 0 || p.x > stageWidth || !p.active) pit.remove();
         }
 
-        // Player hits enemy
-        if (playerHitbox != null && enemyInvuln == 0) {
-            float enemyLeft = enemyX - charW * 0.25f;
-            float enemyRight = enemyX + charW * 0.25f;
-            float enemyBottom = enemyY;
-            float enemyTop = enemyY + charW * 0.75f;
+        // Check P1 Melee Hitbox
+        if (p1Hitbox != null && p2InvincibleTimer == 0) {
+            float enemyLeft = p2X - charW * 0.26f;
+            float enemyRight = p2X + charW * 0.26f;
+            float enemyBottom = p2Y;
+            float enemyTop = p2Y + charW * 0.75f;
 
-            if (playerHitbox.x < enemyRight && playerHitbox.x + playerHitbox.w > enemyLeft &&
-                playerHitbox.y < enemyTop && playerHitbox.y + playerHitbox.h > enemyBottom) {
-                enemyHP -= playerHitbox.damage;
-                enemyState = "HIT"; enemyAnimTimer = 0; enemyInvuln = playerHitbox.hitstun; enemyFlash = 8;
-                game.playSound(game.sndHitPunch, 0.8f);
-                spawnParticles(enemyX, enemyY + charW * 0.45f, 0x00ffff, 12);
-                spawnCodeBurst(enemyX, enemyY + charW * 0.4f);
-                hitPause = 6; shakeTimer = 7;
-                comboCount++; comboTimer = 65; comboX = enemyX; comboY = enemyY + charW * 0.8f;
-                comboScale = 1.4f;
-                totalDamageDealt += playerHitbox.damage;
-                if (comboCount > maxCombo) maxCombo = comboCount;
-                playerHitbox = null;
-            }
-        }
-
-        // Enemy hits player
-        if (enemyHitbox != null && playerInvuln == 0) {
-            float playerLeft = playerX - charW * 0.25f;
-            float playerRight = playerX + charW * 0.25f;
-            float playerBottom = playerY;
-            float playerTop = playerY + charW * 0.75f;
-
-            if (enemyHitbox.x < playerRight && enemyHitbox.x + enemyHitbox.w > playerLeft &&
-                enemyHitbox.y < playerTop && enemyHitbox.y + enemyHitbox.h > playerBottom) {
-                if (playerBlock) {
-                    playerHP -= enemyHitbox.damage * 0.3f;
-                    game.playSound(game.sndBlockShield, 0.6f);
-                    spawnParticles(playerX, playerY + charW * 0.45f, 0xffff00, 6);
+            if (p1Hitbox.x < enemyRight && p1Hitbox.x + p1Hitbox.w > enemyLeft &&
+                p1Hitbox.y < enemyTop && p1Hitbox.y + p1Hitbox.h > enemyBottom) {
+                int dmg = p1Hitbox.damage;
+                if (p2Block) {
+                    dmg = (int) (dmg * 0.3f);
+                    game.playSound(game.sndBlockShield, 0.65f * game.settingsScreen.sfxVolume);
+                    spawnParticles(p2X, p2Y + charW * 0.45f, 0xffff00, 6);
+                    addNotice("BLOCKED", p2X, p2Y + charW * 0.85f, 0xffff00);
                 } else {
-                    playerHP -= enemyHitbox.damage;
-                    playerState = "HIT"; playerAnimTimer = 0; playerInvuln = enemyHitbox.hitstun; playerFlash = 10;
-                    game.playSound(game.sndDamageGlitch, 0.7f);
-                    spawnParticles(playerX, playerY + charW * 0.45f, 0xff4444, 10);
-                    hitPause = 6; shakeTimer = 8;
-                    comboCount = 0;
+                    game.playSound(game.sndHitPunch, 0.85f * game.settingsScreen.sfxVolume);
+                    spawnParticles(p2X, p2Y + charW * 0.45f, 0x00bcd4, 12);
+                    hitPause = p1State.equals("DASH_ATTACK") ? 8 : 6;
+                    shakeTimer = p1State.equals("DASH_ATTACK") ? 10 : 7;
+                    p1ComboCount++;
+                    p1ComboTimer = 60;
+                    if (p1ComboCount > maxComboAchieved) maxComboAchieved = p1ComboCount;
+                    if (p1ComboCount > 1) {
+                        addNotice(p1ComboCount + " HITS COMBO!", p2X, p2Y + charW * 0.85f, 0xffd54f);
+                    } else if (p1State.equals("DASH_ATTACK")) {
+                        addNotice("DASH ATTACK!", p2X, p2Y + charW * 0.85f, 0x00e5ff);
+                    }
                 }
-                enemyHitbox = null;
+                p2HP -= dmg;
+                totalDamageDealtP1 += dmg;
+                p1SuperGauge = Math.min(100f, p1SuperGauge + 8f);
+                p2State = "HIT"; p2AnimTimer = 0; p2InvincibleTimer = p1Hitbox.hitstun; p2Flash = 8;
+                p1Hitbox = null;
             }
         }
 
-        // Particles
+        // Check P2 Melee Hitbox
+        if (p2Hitbox != null && p1InvincibleTimer == 0) {
+            float playerLeft = p1X - charW * 0.26f;
+            float playerRight = p1X + charW * 0.26f;
+            float playerBottom = p1Y;
+            float playerTop = p1Y + charW * 0.75f;
+
+            if (p2Hitbox.x < playerRight && p2Hitbox.x + p2Hitbox.w > playerLeft &&
+                p2Hitbox.y < playerTop && p2Hitbox.y + p2Hitbox.h > playerBottom) {
+                int dmg = p2Hitbox.damage;
+                if (p1Block) {
+                    dmg = (int) (dmg * 0.3f);
+                    game.playSound(game.sndBlockShield, 0.65f * game.settingsScreen.sfxVolume);
+                    spawnParticles(p1X, p1Y + charW * 0.45f, 0xffff00, 6);
+                    addNotice("BLOCKED", p1X, p1Y + charW * 0.85f, 0xffff00);
+                } else {
+                    game.playSound(game.sndHitPunch, 0.85f * game.settingsScreen.sfxVolume);
+                    spawnParticles(p1X, p1Y + charW * 0.45f, 0xff1744, 12);
+                    hitPause = p2State.equals("DASH_ATTACK") ? 8 : 6;
+                    shakeTimer = 8;
+                    p2ComboCount++;
+                    p2ComboTimer = 60;
+                    if (p2ComboCount > 1) {
+                        addNotice(p2ComboCount + " HITS COMBO!", p1X, p1Y + charW * 0.85f, 0xff5252);
+                    }
+                }
+                p1HP -= dmg;
+                p2SuperGauge = Math.min(100f, p2SuperGauge + 8f);
+                p1State = "HIT"; p1AnimTimer = 0; p1InvincibleTimer = p2Hitbox.hitstun; p1Flash = 8;
+                p2Hitbox = null;
+            }
+        }
+
+        // Particles & Ghost Trails
         Iterator<Particle> partIt = particles.iterator();
         while (partIt.hasNext()) {
             Particle p = partIt.next();
             p.x += p.vx; p.y += p.vy; p.vy += 0.15f; p.life--;
             if (p.life <= 0) partIt.remove();
         }
-        if (comboTimer > 0) comboTimer--;
-        if (comboScale > 1f) comboScale -= 0.02f;
 
-        // Win/Lose condition
-        if (enemyHP <= 0) {
-            enemyHP = 0;
-            game.progress.markDefeated("wannacry");
-            game.winScreen.setStats(fightTime, maxCombo, totalDamageDealt);
-            game.setScreen(game.winScreen);
+        Iterator<GhostTrail> git = ghostTrails.iterator();
+        while (git.hasNext()) {
+            GhostTrail gt = git.next();
+            gt.life--;
+            if (gt.life <= 0) git.remove();
         }
-        if (playerHP <= 0) {
-            playerHP = 0;
-            game.setScreen(game.loseScreen);
+
+        Iterator<FloatingNotice> nit = notices.iterator();
+        while (nit.hasNext()) {
+            FloatingNotice fn = nit.next();
+            fn.y += 1.2f;
+            fn.life--;
+            if (fn.life <= 0) nit.remove();
+        }
+
+        // Check Round Over condition
+        if (p2HP <= 0 || p1HP <= 0) {
+            if (p2HP <= 0 && p1HP <= 0) {
+                bannerText = "DOUBLE K.O.";
+            } else if (p2HP <= 0) {
+                p2HP = 0;
+                p1RoundsWon++;
+                bannerText = "K.O.\nPLAYER 1 WINS ROUND";
+            } else {
+                p1HP = 0;
+                p2RoundsWon++;
+                bannerText = (mode == GameMode.VERSUS) ? "K.O.\nPLAYER 2 WINS ROUND" : "K.O.\nWANNACRY WINS ROUND";
+            }
+            matchState = MatchState.ROUND_OVER;
+            bannerTimer = 0f;
+            game.playSound(game.sndAnnouncerKo, 1.0f);
+            if (mode == GameMode.ARCADE && p2HP <= 0) {
+                game.playSound(game.sndDamageWannacry, 1.0f);
+            } else {
+                game.playSound(game.sndDamageByte, 1.0f);
+            }
         }
     }
 
-    void drawFightWorld(float w, float h) {
+    void processPlayer1Input(float w, float h, float delta, float charW, float hitH) {
+        // Touch bounds for Player 1
+        float btnSize = h * 0.135f;
+        float padY = h * 0.045f;
+        float p1LeftX = w * 0.04f;
+        float p1RightX = w * 0.17f;
+
+        // In Versus mode, P1 attack buttons are placed on left half of screen
+        float p1AtkX = (mode == GameMode.VERSUS) ? w * 0.31f : w * 0.65f;
+        float p1SplX = (mode == GameMode.VERSUS) ? w * 0.39f : w * 0.77f;
+        float p1SplY = (mode == GameMode.VERSUS) ? padY + btnSize * 0.7f : padY + btnSize * 0.45f;
+        float p1BlkX = (mode == GameMode.VERSUS) ? w * 0.42f : w * 0.88f;
+
+        boolean touchLeft = false, touchRight = false;
+        boolean touchAtk = false, touchSpl = false, touchBlk = false;
+
+        // Multi-touch scan
+        for (int i = 0; i < 6; i++) {
+            if (Gdx.input.isTouched(i)) {
+                float tx = Gdx.input.getX(i);
+                float ty = Gdx.graphics.getHeight() - Gdx.input.getY(i);
+
+                if (mode == GameMode.VERSUS && tx > w * 0.5f) continue; // P1 restricted to left half in Versus
+
+                if (tx >= p1LeftX && tx <= p1LeftX + btnSize && ty >= padY && ty <= padY + btnSize) touchLeft = true;
+                if (tx >= p1RightX && tx <= p1RightX + btnSize && ty >= padY && ty <= padY + btnSize) touchRight = true;
+                if (tx >= p1AtkX && tx <= p1AtkX + btnSize && ty >= padY && ty <= padY + btnSize) touchAtk = true;
+                if (tx >= p1SplX && tx <= p1SplX + btnSize && ty >= p1SplY && ty <= p1SplY + btnSize) touchSpl = true;
+                if (tx >= p1BlkX && tx <= p1BlkX + btnSize && ty >= padY && ty <= padY + btnSize) touchBlk = true;
+            }
+        }
+
+        boolean leftKey = Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT);
+        boolean rightKey = Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT);
+        if (mode == GameMode.VERSUS) {
+            // In versus, P1 only uses A / D
+            leftKey = Gdx.input.isKeyPressed(Input.Keys.A);
+            rightKey = Gdx.input.isKeyPressed(Input.Keys.D);
+        }
+
+        boolean left = leftKey || touchLeft;
+        boolean right = rightKey || touchRight;
+
+        boolean p1LeftJustPressed = (mode == GameMode.VERSUS)
+                ? (Gdx.input.isKeyJustPressed(Input.Keys.A) || (touchLeft && !p1LeftWasPressed))
+                : (Gdx.input.isKeyJustPressed(Input.Keys.A) || Gdx.input.isKeyJustPressed(Input.Keys.LEFT) || (touchLeft && !p1LeftWasPressed));
+
+        boolean p1RightJustPressed = (mode == GameMode.VERSUS)
+                ? (Gdx.input.isKeyJustPressed(Input.Keys.D) || (touchRight && !p1RightWasPressed))
+                : (Gdx.input.isKeyJustPressed(Input.Keys.D) || Gdx.input.isKeyJustPressed(Input.Keys.RIGHT) || (touchRight && !p1RightWasPressed));
+
+        // Double-Tap Dash Detection (Left moves Left, Right moves Right regardless of facing)
+        float now = totalFightTime;
+        if (p1LeftJustPressed) {
+            if (now - p1LastLeftTapTime < 0.32f && p1DashCooldown <= 0f && !p1IsDashing) {
+                triggerP1Dash(p1Facing < 0);
+            }
+            p1LastLeftTapTime = now;
+        }
+        if (p1RightJustPressed) {
+            if (now - p1LastRightTapTime < 0.32f && p1DashCooldown <= 0f && !p1IsDashing) {
+                triggerP1Dash(p1Facing > 0);
+            }
+            p1LastRightTapTime = now;
+        }
+
+        p1LeftWasPressed = touchLeft;
+        p1RightWasPressed = touchRight;
+
+        boolean attackKey = (mode == GameMode.VERSUS) ? Gdx.input.isKeyJustPressed(Input.Keys.F) || Gdx.input.isKeyJustPressed(Input.Keys.J) : Gdx.input.isKeyJustPressed(Input.Keys.J);
+        boolean specialKey = (mode == GameMode.VERSUS) ? Gdx.input.isKeyJustPressed(Input.Keys.G) || Gdx.input.isKeyJustPressed(Input.Keys.K) : Gdx.input.isKeyJustPressed(Input.Keys.K);
+        boolean blockKey = (mode == GameMode.VERSUS) ? Gdx.input.isKeyPressed(Input.Keys.H) || Gdx.input.isKeyPressed(Input.Keys.L) : Gdx.input.isKeyPressed(Input.Keys.L);
+
+        boolean attack = attackKey || (touchAtk && !p1AtkWasPressed);
+        boolean special = specialKey || (touchSpl && !p1SplWasPressed);
+        boolean block = blockKey || touchBlk;
+
+        p1AtkWasPressed = touchAtk;
+        p1SplWasPressed = touchSpl;
+
+        p1Block = block && !p1State.startsWith("ATTACK") && !p1State.equals("SPECIAL") && !p1State.equals("HIT") && !p1IsDashing;
+
+        // Handle Active Dash
+        if (p1IsDashing) {
+            p1DashTimer -= delta;
+            // Ghost trail afterimages
+            if (frame % 3 == 0) {
+                ghostTrails.add(new GhostTrail(p1X, p1Y, charW, charW, p1Facing, 0x00bcd4, 12));
+            }
+
+            // Attack-Cancel during forward dash -> Dash Attack!
+            if (p1DashForward && attack) {
+                p1IsDashing = false;
+                p1State = "DASH_ATTACK";
+                p1AnimTimer = 0;
+                float hitX = (p1Facing > 0) ? p1X + charW * 0.2f : p1X - charW * 0.55f;
+                p1Hitbox = new Hitbox(hitX, p1Y, charW * 0.55f, hitH, 18, 22); // 1.5x damage!
+                p1VX = p1Facing * 7.5f;
+                game.playSound(game.sndHitPunch, 0.9f * game.settingsScreen.sfxVolume);
+                return;
+            }
+
+            if (p1DashTimer <= 0) {
+                p1IsDashing = false;
+                p1VX = 0;
+                p1State = "IDLE";
+            }
+            return;
+        }
+
+        // Movement & Normal States
+        if (!p1Block && (p1State.equals("IDLE") || p1State.equals("WALK"))) {
+            if (left) {
+                p1VX = -5f;
+                p1State = "WALK";
+                if (p1IdleFrame % 14 == 0) spawnParticles(p1X, p1Y + 4, 0x00bcd4, 2);
+            } else if (right) {
+                p1VX = 5f;
+                p1State = "WALK";
+                if (p1IdleFrame % 14 == 0) spawnParticles(p1X, p1Y + 4, 0x00bcd4, 2);
+            } else {
+                p1VX = 0;
+                p1State = "IDLE";
+            }
+        }
+
+        // Attack animations & Hitboxes
+        if (p1State.startsWith("ATTACK")) {
+            p1AnimTimer++;
+            if (p1AnimTimer <= 5) {
+                p1VX = p1Facing * 2.5f;
+            } else {
+                p1VX = 0;
+            }
+
+            if (p1AnimTimer == 5) {
+                float hitX = p1Facing > 0 ? p1X + charW * 0.2f : p1X - charW * 0.5f;
+                int dmg = p1State.equals("ATTACK2") ? 10 : (p1State.equals("ATTACK3") ? 14 : 7);
+                p1Hitbox = new Hitbox(hitX, p1Y, charW * 0.45f, hitH, dmg, 16);
+            }
+            if (p1AnimTimer == 13) p1Hitbox = null;
+            if (p1AnimTimer > 19) { p1State = "IDLE"; p1AnimTimer = 0; }
+        } else if (p1State.equals("DASH_ATTACK")) {
+            p1AnimTimer++;
+            p1VX *= 0.88f;
+            if (p1AnimTimer > 18) { p1Hitbox = null; p1State = "IDLE"; p1AnimTimer = 0; }
+        } else if (p1State.equals("SPECIAL")) {
+            p1AnimTimer++;
+            p1VX = 0;
+            if (p1AnimTimer == 10) {
+                float projX = p1X + p1Facing * (charW * 0.35f);
+                float projY = p1Y + charW * 0.35f;
+                projectiles.add(new Projectile(projX, projY, p1Facing * 11f, 18));
+                game.playSound(game.sndSpecialFire, 0.8f * game.settingsScreen.sfxVolume);
+                p1VX = -p1Facing * 4f;
+            }
+            if (p1AnimTimer > 28) { p1State = "IDLE"; p1AnimTimer = 0; }
+        } else if (p1State.equals("HIT")) {
+            p1AnimTimer++;
+            p1VX *= 0.85f;
+            if (p1AnimTimer > 16) { p1State = "IDLE"; p1AnimTimer = 0; }
+        } else {
+            // Trigger attacks from neutral
+            if (attack) {
+                if (p1ComboCount == 0 || p1ComboTimer <= 0) {
+                    p1State = "ATTACK1"; p1AnimTimer = 0; p1ComboCount = 1; p1ComboTimer = 40;
+                } else if (p1ComboCount == 1) {
+                    p1State = "ATTACK2"; p1AnimTimer = 0; p1ComboCount = 2; p1ComboTimer = 40;
+                } else {
+                    p1State = "ATTACK3"; p1AnimTimer = 0; p1ComboCount = 3; p1ComboTimer = 40;
+                }
+            } else if (special && p1SuperGauge >= 25f) {
+                p1SuperGauge -= 25f;
+                p1State = "SPECIAL";
+                p1AnimTimer = 0;
+            }
+        }
+    }
+
+    void triggerP1Dash(boolean forward) {
+        p1IsDashing = true;
+        p1DashForward = forward;
+        p1DashCooldown = 0.5f;
+        if (forward) {
+            p1DashTimer = 0.25f;
+            p1VX = p1Facing * 9.5f;
+        } else {
+            // Backdash has 3-4 i-frames
+            p1DashTimer = 0.20f;
+            p1VX = -p1Facing * 8.0f;
+            p1InvincibleTimer = 10;
+        }
+        spawnParticles(p1X, p1Y + 10, 0x00bcd4, 6);
+    }
+
+    void processPlayer2VersusInput(float w, float h, float delta, float charW, float hitH) {
+        float btnSize = h * 0.135f;
+        float padY = h * 0.045f;
+
+        // Player 2 controls on right half of screen (orange)
+        float p2LeftX = w * 0.54f;
+        float p2RightX = w * 0.67f;
+        float p2AtkX = w * 0.80f;
+        float p2SplX = w * 0.88f;
+        float p2SplY = padY + btnSize * 0.7f;
+        float p2BlkX = w * 0.91f;
+
+        boolean touchLeft = false, touchRight = false;
+        boolean touchAtk = false, touchSpl = false, touchBlk = false;
+
+        for (int i = 0; i < 6; i++) {
+            if (Gdx.input.isTouched(i)) {
+                float tx = Gdx.input.getX(i);
+                float ty = Gdx.graphics.getHeight() - Gdx.input.getY(i);
+                if (tx < w * 0.5f) continue; // P2 restricted to right half
+
+                if (tx >= p2LeftX && tx <= p2LeftX + btnSize && ty >= padY && ty <= padY + btnSize) touchLeft = true;
+                if (tx >= p2RightX && tx <= p2RightX + btnSize && ty >= padY && ty <= padY + btnSize) touchRight = true;
+                if (tx >= p2AtkX && tx <= p2AtkX + btnSize && ty >= padY && ty <= padY + btnSize) touchAtk = true;
+                if (tx >= p2SplX && tx <= p2SplX + btnSize && ty >= p2SplY && ty <= p2SplY + btnSize) touchSpl = true;
+                if (tx >= p2BlkX && tx <= p2BlkX + btnSize && ty >= padY && ty <= padY + btnSize) touchBlk = true;
+            }
+        }
+
+        boolean left = Gdx.input.isKeyPressed(Input.Keys.LEFT) || touchLeft;
+        boolean right = Gdx.input.isKeyPressed(Input.Keys.RIGHT) || touchRight;
+
+        boolean p2LeftJustPressed = Gdx.input.isKeyJustPressed(Input.Keys.LEFT) || (touchLeft && !p2LeftWasPressed);
+        boolean p2RightJustPressed = Gdx.input.isKeyJustPressed(Input.Keys.RIGHT) || (touchRight && !p2RightWasPressed);
+
+        // P2 Double Tap Dash
+        float now = totalFightTime;
+        if (p2LeftJustPressed) {
+            if (now - p2LastLeftTapTime < 0.32f && p2DashCooldown <= 0f && !p2IsDashing) {
+                triggerP2Dash(p2Facing < 0);
+            }
+            p2LastLeftTapTime = now;
+        }
+        if (p2RightJustPressed) {
+            if (now - p2LastRightTapTime < 0.32f && p2DashCooldown <= 0f && !p2IsDashing) {
+                triggerP2Dash(p2Facing > 0);
+            }
+            p2LastRightTapTime = now;
+        }
+
+        p2LeftWasPressed = touchLeft;
+        p2RightWasPressed = touchRight;
+
+        boolean attackKey = Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_1) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_1);
+        boolean specialKey = Gdx.input.isKeyJustPressed(Input.Keys.NUMPAD_2) || Gdx.input.isKeyJustPressed(Input.Keys.NUM_2);
+        boolean blockKey = Gdx.input.isKeyPressed(Input.Keys.NUMPAD_3) || Gdx.input.isKeyPressed(Input.Keys.NUM_3);
+
+        boolean attack = attackKey || (touchAtk && !p2AtkWasPressed);
+        boolean special = specialKey || (touchSpl && !p2SplWasPressed);
+        boolean block = blockKey || touchBlk;
+
+        p2AtkWasPressed = touchAtk;
+        p2SplWasPressed = touchSpl;
+
+        p2Block = block && !p2State.startsWith("ATTACK") && !p2State.equals("SPECIAL") && !p2State.equals("HIT") && !p2IsDashing;
+
+        if (p2IsDashing) {
+            p2DashTimer -= delta;
+            if (frame % 3 == 0) {
+                ghostTrails.add(new GhostTrail(p2X, p2Y, charW, charW, p2Facing, 0xff9800, 12));
+            }
+            if (p2DashForward && attack) {
+                p2IsDashing = false;
+                p2State = "DASH_ATTACK";
+                p2AnimTimer = 0;
+                float hitX = (p2Facing > 0) ? p2X + charW * 0.2f : p2X - charW * 0.55f;
+                p2Hitbox = new Hitbox(hitX, p2Y, charW * 0.55f, hitH, 18, 22);
+                p2VX = p2Facing * 7.5f;
+                game.playSound(game.sndHitPunch, 0.9f * game.settingsScreen.sfxVolume);
+                return;
+            }
+            if (p2DashTimer <= 0) {
+                p2IsDashing = false;
+                p2VX = 0;
+                p2State = "IDLE";
+            }
+            return;
+        }
+
+        if (!p2Block && (p2State.equals("IDLE") || p2State.equals("WALK"))) {
+            if (left) {
+                p2VX = -5f;
+                p2State = "WALK";
+                if (p2IdleFrame % 14 == 0) spawnParticles(p2X, p2Y + 4, 0xff9800, 2);
+            } else if (right) {
+                p2VX = 5f;
+                p2State = "WALK";
+                if (p2IdleFrame % 14 == 0) spawnParticles(p2X, p2Y + 4, 0xff9800, 2);
+            } else {
+                p2VX = 0;
+                p2State = "IDLE";
+            }
+        }
+
+        if (p2State.startsWith("ATTACK")) {
+            p2AnimTimer++;
+            if (p2AnimTimer <= 5) {
+                p2VX = p2Facing * 2.5f;
+            } else {
+                p2VX = 0;
+            }
+
+            if (p2AnimTimer == 5) {
+                float hitX = p2Facing > 0 ? p2X + charW * 0.2f : p2X - charW * 0.5f;
+                int dmg = p2State.equals("ATTACK2") ? 10 : (p2State.equals("ATTACK3") ? 14 : 7);
+                p2Hitbox = new Hitbox(hitX, p2Y, charW * 0.45f, hitH, dmg, 16);
+            }
+            if (p2AnimTimer == 13) p2Hitbox = null;
+            if (p2AnimTimer > 19) { p2State = "IDLE"; p2AnimTimer = 0; }
+        } else if (p2State.equals("DASH_ATTACK")) {
+            p2AnimTimer++;
+            p2VX *= 0.88f;
+            if (p2AnimTimer > 18) { p2Hitbox = null; p2State = "IDLE"; p2AnimTimer = 0; }
+        } else if (p2State.equals("SPECIAL")) {
+            p2AnimTimer++;
+            p2VX = 0;
+            if (p2AnimTimer == 10) {
+                float projX = p2X + p2Facing * (charW * 0.35f);
+                float projY = p2Y + charW * 0.35f;
+                projectiles.add(new Projectile(projX, projY, p2Facing * 11f, 18));
+                game.playSound(game.sndSpecialFire, 0.8f * game.settingsScreen.sfxVolume);
+                p2VX = -p2Facing * 4f;
+            }
+            if (p2AnimTimer > 28) { p2State = "IDLE"; p2AnimTimer = 0; }
+        } else if (p2State.equals("HIT")) {
+            p2AnimTimer++;
+            p2VX *= 0.85f;
+            if (p2AnimTimer > 16) { p2State = "IDLE"; p2AnimTimer = 0; }
+        } else {
+            if (attack) {
+                if (p2ComboCount == 0 || p2ComboTimer <= 0) {
+                    p2State = "ATTACK1"; p2AnimTimer = 0; p2ComboCount = 1; p2ComboTimer = 40;
+                } else if (p2ComboCount == 1) {
+                    p2State = "ATTACK2"; p2AnimTimer = 0; p2ComboCount = 2; p2ComboTimer = 40;
+                } else {
+                    p2State = "ATTACK3"; p2AnimTimer = 0; p2ComboCount = 3; p2ComboTimer = 40;
+                }
+            } else if (special && p2SuperGauge >= 25f) {
+                p2SuperGauge -= 25f;
+                p2State = "SPECIAL";
+                p2AnimTimer = 0;
+            }
+        }
+    }
+
+    void triggerP2Dash(boolean forward) {
+        p2IsDashing = true;
+        p2DashForward = forward;
+        p2DashCooldown = 0.5f;
+        if (forward) {
+            p2DashTimer = 0.25f;
+            p2VX = p2Facing * 9.5f;
+        } else {
+            p2DashTimer = 0.20f;
+            p2VX = -p2Facing * 8.0f;
+            p2InvincibleTimer = 10;
+        }
+        spawnParticles(p2X, p2Y + 10, 0xff9800, 6);
+    }
+
+    void processEnemyAI(float charW, float hitH) {
+        p2AttackCooldown--;
+        float distToPlayer = p1X - p2X;
+        float absDist = Math.abs(distToPlayer);
+        if (distToPlayer > 12f) p2Facing = 1f;
+        else if (distToPlayer < -12f) p2Facing = -1f;
+
+        // AI Difficulty adjustments
+        float aiSpeed;
+        int attackRate;
+        String diff = (game.settingsScreen != null && game.settingsScreen.difficulty != null) ? game.settingsScreen.difficulty : "NORMAL";
+        switch (diff) {
+            case "EASY":
+                aiSpeed = 1.8f;
+                attackRate = 70;
+                break;
+            case "HARD":
+                aiSpeed = 3.2f;
+                attackRate = 35;
+                break;
+            default:
+                aiSpeed = 2.4f;
+                attackRate = 50;
+                break;
+        }
+
+        if (p2State.equals("IDLE") || p2State.equals("WALK")) {
+            if (absDist > charW * 0.36f) {
+                p2VX = p2Facing * aiSpeed;
+                p2State = "WALK";
+                if (p2IdleFrame % 14 == 0) spawnParticles(p2X, p2Y + 4, 0xff1744, 2);
+            } else {
+                p2VX = 0;
+                p2State = "IDLE";
+                if (p2AttackCooldown <= 0) {
+                    p2State = "ATTACK";
+                    p2AnimTimer = 0;
+                    p2AttackCooldown = attackRate + rand.nextInt(25);
+                }
+            }
+        } else if (p2State.equals("ATTACK")) {
+            p2AnimTimer++;
+            if (p2AnimTimer >= 10 && p2AnimTimer <= 16) {
+                p2VX = p2Facing * 3.2f;
+            } else {
+                p2VX = 0;
+            }
+
+            if (p2AnimTimer == 15) {
+                float hitX = p2Facing > 0 ? p2X + charW * 0.2f : p2X - charW * 0.5f;
+                p2Hitbox = new Hitbox(hitX, p2Y, charW * 0.45f, hitH, 10, 20);
+                float masterSfx = (game.settingsScreen != null) ? game.settingsScreen.sfxVolume : 1.0f;
+                game.playSound(game.sndHitPunch, 0.75f * masterSfx);
+            }
+            if (p2AnimTimer == 28) p2Hitbox = null;
+            if (p2AnimTimer > 38) { p2State = "IDLE"; p2AnimTimer = 0; }
+        } else if (p2State.equals("HIT")) {
+            p2AnimTimer++;
+            p2VX *= 0.85f;
+            if (p2AnimTimer > 15) { p2State = "IDLE"; p2AnimTimer = 0; }
+        }
+    }
+
+    void drawFightWorld(float h) {
         Gdx.gl.glClearColor(0.02f, 0.02f, 0.05f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Apply world camera (handles panning and dynamic zoom)
         game.batch.setProjectionMatrix(worldCamera.combined);
         game.shapeRenderer.setProjectionMatrix(worldCamera.combined);
 
-        // Parallax background (spans stage width)
+        // Background
         game.batch.begin();
         if (game.texBgFight != null) {
             float bgW = stageWidth * 1.15f;
@@ -551,9 +1048,8 @@ public class FightScreen implements Screen {
         }
         game.batch.end();
 
-        // Cyberpunk Floor (Street Fighter style floor grid below groundY)
+        // Street Fighter Cyberpunk Floor
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        // Floor base dark fill
         game.shapeRenderer.setColor(0.04f, 0.05f, 0.09f, 0.95f);
         game.shapeRenderer.rect(0, 0, stageWidth, groundY);
         // Stage glow horizon line
@@ -561,7 +1057,7 @@ public class FightScreen implements Screen {
         game.shapeRenderer.rect(0, groundY - 3, stageWidth, 4);
         game.shapeRenderer.end();
 
-        // Floor perspective grid lines (giving authentic 3D depth to the floor plane)
+        // Floor perspective grid
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(0.0f, 0.45f, 0.75f, 0.4f);
         for (float gy = groundY * 0.25f; gy < groundY; gy += groundY * 0.25f) {
@@ -572,20 +1068,38 @@ public class FightScreen implements Screen {
         }
         game.shapeRenderer.end();
 
-        // Ground shadow under each fighter (firmly on the floor)
+        // Ground contact shadows under fighters
         float charH = h * 0.52f;
-        float charW = charH;
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0, 0, 0, 0.55f);
-        game.shapeRenderer.ellipse(playerX - charW * 0.22f, groundY - h * 0.015f, charW * 0.44f, h * 0.035f);
-        game.shapeRenderer.ellipse(enemyX - charW * 0.22f, groundY - h * 0.015f, charW * 0.44f, h * 0.035f);
+        game.shapeRenderer.ellipse(p1X - charH * 0.22f, groundY - h * 0.015f, charH * 0.44f, h * 0.035f);
+        game.shapeRenderer.ellipse(p2X - charH * 0.22f, groundY - h * 0.015f, charH * 0.44f, h * 0.035f);
         game.shapeRenderer.end();
 
-        // Draw Player Sprite (half of screen height!)
-        drawPlayerSprite(playerX, playerY, charW, charH);
+        // Draw Ghost Trails (Dash afterimages)
+        game.batch.begin();
+        for (GhostTrail gt : ghostTrails) {
+            float alpha = (gt.life / 12f) * 0.4f;
+            float r = ((gt.color >> 16) & 0xFF) / 255f;
+            float g = ((gt.color >> 8) & 0xFF) / 255f;
+            float b = (gt.color & 0xFF) / 255f;
+            game.batch.setColor(r, g, b, alpha);
+            if (game.texPlayerIdle != null) {
+                float gx = gt.x - gt.w / 2f;
+                if (gt.facing < 0) {
+                    game.batch.draw(game.texPlayerIdle, gx, gt.y, gt.w, gt.h,
+                        0, 0, game.texPlayerIdle.getWidth(), game.texPlayerIdle.getHeight(), true, false);
+                } else {
+                    game.batch.draw(game.texPlayerIdle, gx, gt.y, gt.w, gt.h);
+                }
+            }
+        }
+        game.batch.setColor(1, 1, 1, 1);
+        game.batch.end();
 
-        // Draw Enemy Sprite (half of screen height!)
-        drawEnemySprite(enemyX, enemyY, charW, charH);
+        // Draw Fighters
+        drawFighterSprite(p1X, p1Y, charH, charH, true);
+        drawFighterSprite(p2X, p2Y, charH, charH, false);
 
         // Projectiles
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
@@ -597,97 +1111,120 @@ public class FightScreen implements Screen {
         }
         game.shapeRenderer.end();
 
-        // Particles & code bursts
+        // Particles
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         for (Particle p : particles) {
-            if (!p.isText) {
-                float alpha = p.life / (float) p.maxLife;
-                float r = ((p.color >> 16) & 0xFF) / 255f;
-                float g = ((p.color >> 8) & 0xFF) / 255f;
-                float b = (p.color & 0xFF) / 255f;
-                game.shapeRenderer.setColor(r, g, b, alpha);
-                game.shapeRenderer.rect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
-            }
+            float alpha = p.life / (float) p.maxLife;
+            float r = ((p.color >> 16) & 0xFF) / 255f;
+            float g = ((p.color >> 8) & 0xFF) / 255f;
+            float b = (p.color & 0xFF) / 255f;
+            game.shapeRenderer.setColor(r, g, b, alpha);
+            game.shapeRenderer.rect(p.x - p.size / 2.0f, p.y - p.size / 2.0f, (float) p.size, (float) p.size);
         }
         game.shapeRenderer.end();
 
-        // Text particles
+        // Floating Notices
         game.batch.begin();
-        for (Particle p : particles) {
-            if (p.isText && p.text != null) {
-                float alpha = p.life / (float) p.maxLife;
-                game.fontSmall.setColor(0.31f, 0.76f, 0.97f, alpha);
-                game.fontSmall.draw(game.batch, p.text, p.x, p.y);
-            }
+        for (FloatingNotice fn : notices) {
+            float alpha = Math.min(1.0f, fn.life / 20f);
+            float r = ((fn.color >> 16) & 0xFF) / 255f;
+            float g = ((fn.color >> 8) & 0xFF) / 255f;
+            float b = (fn.color & 0xFF) / 255f;
+            game.fontBold.setColor(r, g, b, alpha);
+            game.drawTextCentered(game.fontBold, fn.text, fn.x, fn.y);
         }
         game.batch.end();
-
-        // In-world Combo banner near the hit
-        if (comboTimer > 0 && comboCount > 1) {
-            game.batch.begin();
-            float alpha = Math.min(1.0f, comboTimer / 45f);
-            game.fontBold.setColor(1, 0.92f, 0.23f, alpha);
-            game.fontBold.getData().setScale(comboScale * 1.3f);
-            game.drawTextCentered(game.fontBold, comboCount + " HITS!", comboX, comboY);
-            game.fontBold.getData().setScale(1.55f);
-            game.batch.end();
-        }
     }
 
-    void drawPlayerSprite(float x, float y, float w, float h) {
-        Texture currentTex = game.texPlayerIdle;
+    void drawFighterSprite(float x, float y, float w, float h, boolean isP1) {
+        Texture currentTex = null;
+        String state = isP1 ? p1State : p2State;
+        int animTimer = isP1 ? p1AnimTimer : p2AnimTimer;
+        int idleF = isP1 ? p1IdleFrame : p2IdleFrame;
+        float facing = isP1 ? p1Facing : p2Facing;
+        int flash = isP1 ? p1Flash : p2Flash;
+        boolean block = isP1 ? p1Block : p2Block;
+
         float drawW = w;
         float drawH = h;
         float drawY = y;
 
-        if (playerState.equals("ATTACK1")) {
-            if (playerAnimTimer < 5) currentTex = game.texPlayerAttack1;
-            else if (playerAnimTimer <= 13) currentTex = game.texPlayerAttack2;
-            else currentTex = game.texPlayerAttack1;
-        } else if (playerState.equals("ATTACK2")) {
-            if (playerAnimTimer < 5) currentTex = game.texPlayerAttack2;
-            else if (playerAnimTimer <= 13) currentTex = game.texPlayerAttack1;
-            else currentTex = game.texPlayerAttack2;
-        } else if (playerState.equals("ATTACK3")) {
-            if (playerAnimTimer < 5) currentTex = game.texPlayerAttack1;
-            else if (playerAnimTimer <= 14) currentTex = game.texPlayerAttack2;
-            else currentTex = game.texPlayerAttack1;
-        } else if (playerState.equals("SPECIAL")) {
-            if (playerAnimTimer < 10) currentTex = game.texPlayerAttack1;
-            else if (playerAnimTimer <= 22) currentTex = game.texPlayerAttack2;
-            else currentTex = game.texPlayerAttack1;
-        } else if (playerState.equals("HIT")) {
-            currentTex = (game.texPlayerAttack1 != null) ? game.texPlayerAttack1 : game.texPlayerIdle;
-            drawY += (float) Math.sin(playerAnimTimer * 0.8f) * 6f;
-        } else if (playerState.equals("WALK")) {
-            // Footstep stride bobbing
-            boolean frame2 = ((playerIdleFrame / 12) % 2 == 1);
-            currentTex = (frame2 && game.texPlayerIdle2 != null) ? game.texPlayerIdle2 : game.texPlayerIdle;
-            float stride = (float) Math.sin(playerIdleFrame * 0.28f);
+        boolean isByte = isP1 || mode == GameMode.VERSUS;
+
+        if (state.equals("DASH")) {
+            currentTex = isByte ? game.texByteDash : game.texWannaCryWalk;
+        } else if (state.equals("DASH_ATTACK")) {
+            currentTex = isByte ? game.texByteDashAttack : game.texWannaCryAttack2;
+        } else if (state.startsWith("ATTACK")) {
+            if (isByte) {
+                if (state.equals("ATTACK1")) currentTex = game.texByteAttack1;
+                else if (state.equals("ATTACK2")) currentTex = game.texByteAttack2;
+                else currentTex = game.texByteAttack3;
+            } else {
+                if (animTimer < 15) currentTex = game.texWannaCryAttack1;
+                else currentTex = game.texWannaCryAttack2;
+            }
+        } else if (state.equals("SPECIAL")) {
+            if (isByte) {
+                currentTex = animTimer < 10 ? game.texByteSpecialCharge : game.texByteSpecialFire;
+            } else {
+                currentTex = game.texWannaCrySpecial;
+            }
+        } else if (block) {
+            currentTex = isByte ? game.texByteBlock : game.texWannaCryBlock;
+        } else if (state.equals("HIT")) {
+            if (isByte) {
+                currentTex = (animTimer < 8) ? game.texByteHit1 : game.texByteHit2;
+            } else {
+                currentTex = (animTimer < 8) ? game.texWannaCryHit1 : game.texWannaCryHit2;
+            }
+            drawY += (float) Math.sin(animTimer * 0.8f) * 6f;
+        } else if (state.equals("WALK")) {
+            boolean frame2 = ((idleF / 10) % 2 == 1);
+            if (isByte) {
+                currentTex = frame2 ? game.texByteWalk2 : game.texByteWalk1;
+            } else {
+                currentTex = game.texWannaCryWalk;
+            }
+            float stride = (float) Math.sin(idleF * 0.28f);
             drawY = y + Math.abs(stride) * (h * 0.022f);
+        } else if (state.equals("WIN")) {
+            if (isByte) {
+                currentTex = ((idleF / 20) % 2 == 1) ? game.texByteWin2 : game.texByteWin1;
+            } else {
+                currentTex = game.texWannaCryWin;
+            }
+        } else if (state.equals("LOSE")) {
+            currentTex = isByte ? game.texByteLose : game.texWannaCryLose;
         } else {
-            // Dynamic breathing idle loop (alternating frames + organic breathing)
-            boolean frame2 = ((playerIdleFrame / 20) % 2 == 1);
-            currentTex = (frame2 && game.texPlayerIdle2 != null) ? game.texPlayerIdle2 : game.texPlayerIdle;
-            float breath = (float) Math.sin(playerIdleFrame * 0.09f);
+            // IDLE state with breathing animation
+            boolean frame2 = ((idleF / 20) % 2 == 1);
+            if (isByte) {
+                currentTex = frame2 ? game.texByteIdle2 : game.texByteIdle1;
+            } else {
+                currentTex = frame2 ? game.texWannaCryIdle2 : game.texWannaCryIdle1;
+            }
+            float breath = (float) Math.sin(idleF * 0.09f);
             drawH = h * (1.0f + breath * 0.020f);
             drawW = w * (1.0f - breath * 0.012f);
             drawY = y + breath * (h * 0.005f);
         }
 
-        if (currentTex == null) currentTex = game.texPlayerIdle;
+        if (currentTex == null) currentTex = isByte ? game.texPlayerIdle : game.texEnemyIdle;
 
         game.batch.begin();
-        if (playerFlash > 0) {
+        if (flash > 0) {
             game.batch.setColor(1f, 0.35f, 0.35f, 1f);
+        } else if (!isP1 && mode == GameMode.VERSUS) {
+            // Orange color tint for Player 2
+            game.batch.setColor(1.0f, 0.65f, 0.2f, 1f);
         } else {
             game.batch.setColor(1f, 1f, 1f, 1f);
         }
 
         float drawX = x - drawW / 2f;
-
         if (currentTex != null) {
-            if (playerFacing < 0) {
+            if (facing < 0) {
                 game.batch.draw(currentTex, drawX, drawY, drawW, drawH,
                     0, 0, currentTex.getWidth(), currentTex.getHeight(), true, false);
             } else {
@@ -697,252 +1234,560 @@ public class FightScreen implements Screen {
         game.batch.setColor(1f, 1f, 1f, 1f);
         game.batch.end();
 
-        // Shield barrier effect when blocking
-        if (playerBlock) {
+        // Firewall shield effect
+        if (block) {
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-            game.shapeRenderer.setColor(0f, 0.85f, 1f, 0.40f);
-            float shieldX = (playerFacing > 0) ? x + w * 0.1f : x - w * 0.5f;
+            game.shapeRenderer.setColor(isP1 ? 0f : 1f, isP1 ? 0.85f : 0.6f, isP1 ? 1f : 0.1f, 0.35f);
+            float shieldX = (facing > 0) ? x + w * 0.1f : x - w * 0.5f;
             game.shapeRenderer.rect(shieldX, y, w * 0.4f, h * 0.88f);
             game.shapeRenderer.end();
 
             game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-            game.shapeRenderer.setColor(0.31f, 0.95f, 1f, 0.9f);
+            game.shapeRenderer.setColor(isP1 ? 0.31f : 1f, isP1 ? 0.95f : 0.7f, isP1 ? 1f : 0.2f, 0.9f);
             game.shapeRenderer.rect(shieldX, y, w * 0.4f, h * 0.88f);
             game.shapeRenderer.end();
         }
     }
 
-    void drawEnemySprite(float x, float y, float w, float h) {
-        Texture currentTex = game.texEnemyIdle;
-        float drawW = w;
-        float drawH = h;
-        float drawY = y;
-
-        if (enemyState.equals("ATTACK")) {
-            if (enemyAnimTimer < 15) {
-                currentTex = (game.texEnemyAttack1 != null) ? game.texEnemyAttack1 : game.texEnemyIdle;
-            } else if (enemyAnimTimer <= 28) {
-                currentTex = (game.texEnemyAttack2 != null) ? game.texEnemyAttack2 : game.texEnemyAttack1;
-            } else {
-                currentTex = (game.texEnemyAttack1 != null) ? game.texEnemyAttack1 : game.texEnemyIdle;
-            }
-        } else if (enemyState.equals("HIT")) {
-            currentTex = (game.texEnemyAttack1 != null) ? game.texEnemyAttack1 : game.texEnemyIdle;
-            drawY += (float) Math.sin(enemyAnimTimer * 0.8f) * 6f;
-        } else if (enemyState.equals("WALK")) {
-            boolean frame2 = ((enemyIdleFrame / 12) % 2 == 1);
-            currentTex = (frame2 && game.texEnemyIdle2 != null) ? game.texEnemyIdle2 : game.texEnemyIdle;
-            float stride = (float) Math.sin(enemyIdleFrame * 0.26f);
-            drawY = y + Math.abs(stride) * (h * 0.020f);
-        } else {
-            // Idle loop: 2-frame sprite cycle + subtle cybernetic breathing sway
-            boolean frame2 = ((enemyIdleFrame / 20) % 2 == 1);
-            currentTex = (frame2 && game.texEnemyIdle2 != null) ? game.texEnemyIdle2 : game.texEnemyIdle;
-            float breath = (float) Math.sin(enemyIdleFrame * 0.08f);
-            drawH = h * (1.0f + breath * 0.022f);
-            drawW = w * (1.0f - breath * 0.014f);
-            drawY = y + breath * (h * 0.006f);
-        }
-
-        if (currentTex == null) currentTex = game.texEnemyIdle;
-
-        game.batch.begin();
-        if (enemyFlash > 0) {
-            game.batch.setColor(1f, 1f, 1f, 0.7f);
-        } else {
-            game.batch.setColor(1f, 1f, 1f, 1f);
-        }
-
-        float drawX = x - drawW / 2f;
-
-        if (currentTex != null) {
-            if (enemyFacing > 0) {
-                game.batch.draw(currentTex, drawX, drawY, drawW, drawH,
-                    0, 0, currentTex.getWidth(), currentTex.getHeight(), true, false);
-            } else {
-                game.batch.draw(currentTex, drawX, drawY, drawW, drawH);
-            }
-        }
-        game.batch.setColor(1f, 1f, 1f, 1f);
-        game.batch.end();
-    }
-
     void drawFightHUD(float w, float h) {
-        // Reset projection matrix to fixed screen space
         game.batch.setProjectionMatrix(hudCamera.combined);
         game.shapeRenderer.setProjectionMatrix(hudCamera.combined);
 
-        // Street Fighter 6 style top bar
-        drawSF6TopBar(w, h);
+        // Combined Street Fighter Top HUD (Health, Mana with Level Number, Round Dots, Timer)
+        drawSF6HUD(w, h);
 
-        // Ergonomic touch controls
+        // Touch Controls
         drawTouchControls(w, h);
 
-        // Menu / Back button in top-left
-        float mBtnW = w * 0.11f;
-        float mBtnH = h * 0.055f;
-        drawButton(w * 0.02f, h * 0.92f, mBtnW, mBtnH, "MENU", 0x546e7a, 0x263238);
-        if (isButtonClicked(w * 0.02f, h * 0.92f, mBtnW, mBtnH)) {
-            game.setScreen(game.menuScreen);
+        // Top Pause Button
+        float pBtnSize = h * 0.065f;
+        float pBtnX = w / 2f - pBtnSize / 2f;
+        float pBtnY = h * 0.74f;
+
+        if (game.texBtnPause != null) {
+            game.batch.begin();
+            game.batch.draw(game.texBtnPause, pBtnX, pBtnY, pBtnSize, pBtnSize);
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(0.08f, 0.12f, 0.20f, 0.85f);
+            game.shapeRenderer.rect(pBtnX, pBtnY, pBtnSize, pBtnSize * 0.65f);
+            game.shapeRenderer.end();
+
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 0.8f);
+            game.shapeRenderer.rect(pBtnX, pBtnY, pBtnSize, pBtnSize * 0.65f);
+            game.shapeRenderer.end();
+
+            game.batch.begin();
+            game.fontSmall.setColor(1, 1, 1, 1);
+            game.drawTextCentered(game.fontSmall, "||", pBtnX + pBtnSize / 2f, pBtnY + pBtnSize * 0.325f);
+            game.batch.end();
         }
+
+        if (isButtonClicked(pBtnX, pBtnY, pBtnSize, pBtnSize)) {
+            isPaused = true;
+        }
+
+        // Shared scanline and vignette overlay for arcade cyber-feel
+        game.batch.begin();
+        if (game.texUiScanlines != null) {
+            game.batch.setColor(1, 1, 1, 0.35f);
+            game.batch.draw(game.texUiScanlines, 0, 0, w, h);
+        }
+        if (game.texUiVignette != null) {
+            game.batch.setColor(1, 1, 1, 0.50f);
+            game.batch.draw(game.texUiVignette, 0, 0, w, h);
+        }
+        game.batch.setColor(1, 1, 1, 1);
+        game.batch.end();
     }
 
-    void drawSF6TopBar(float w, float h) {
-        float barH = h * 0.042f;
+    void drawSF6HUD(float w, float h) {
+        float barH = h * 0.038f;
         float barMaxW = w * 0.38f;
-        float barY = h * 0.88f;
+        float barY = h * 0.90f;
 
-        float pBarX = w * 0.10f;
-        float eBarX = w * 0.52f;
+        float p1BarX = w * 0.09f;
+        float p2BarX = w * 0.53f;
 
-        // --- Player 1 Health Bar (Left) ---
-        // Background container
+        // =========================================================================
+        // --- PLAYER 1 (Left - Cyan Theme) ---
+        // =========================================================================
+
+        // 1. Health Bar Container
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.12f, 0.12f, 0.15f, 0.9f);
-        game.shapeRenderer.rect(pBarX, barY, barMaxW, barH);
-
-        // Health fill (cyan/magenta SF6 gradient look)
-        float pFillW = barMaxW * (Math.max(0, playerHP) / 100f);
-        game.shapeRenderer.setColor(0.0f, 0.85f, 1.0f, 1.0f);
-        game.shapeRenderer.rect(pBarX + 2, barY + 2, pFillW - 4, barH - 4);
+        game.shapeRenderer.setColor(0.12f, 0.12f, 0.16f, 0.92f);
+        game.shapeRenderer.rect(p1BarX, barY, barMaxW, barH);
+        // Yellow delayed drain bar
+        float p1DrainW = (p1DisplayHP / (float) p1MaxHP) * barMaxW;
+        game.shapeRenderer.setColor(1.0f, 0.88f, 0.2f, 0.85f);
+        game.shapeRenderer.rect(p1BarX + barMaxW - p1DrainW, barY, p1DrainW, barH);
+        // Health Fill (Cyan)
+        float p1FillW = (p1HP / (float) p1MaxHP) * barMaxW;
+        game.shapeRenderer.setColor(0.0f, 0.85f, 0.95f, 1f);
+        game.shapeRenderer.rect(p1BarX + barMaxW - p1FillW, barY, p1FillW, barH);
         game.shapeRenderer.end();
 
-        // Border
+        // Health Bar Border
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(0.31f, 0.95f, 1.0f, 1f);
-        game.shapeRenderer.rect(pBarX, barY, barMaxW, barH);
+        game.shapeRenderer.setColor(0.31f, 0.95f, 1f, 0.9f);
+        game.shapeRenderer.rect(p1BarX, barY, barMaxW, barH);
         game.shapeRenderer.end();
 
-        // Player Name & HP Numbers
-        game.batch.begin();
-        game.fontBold.setColor(0.31f, 0.95f, 1.0f, 1f);
-        game.fontBold.draw(game.batch, "CAT", pBarX, barY + barH + 24);
+        // 2. Combined Mana / Special Meter (Directly below Health Bar)
+        float manaH = h * 0.020f;
+        float manaY = barY - manaH - 4;
 
-        game.fontSmall.setColor(1f, 1f, 1f, 0.95f);
-        game.fontSmall.draw(game.batch, playerHP + " HP", pBarX + 10, barY + barH * 0.7f);
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        // Mana Bar Background
+        game.shapeRenderer.setColor(0.08f, 0.10f, 0.15f, 0.95f);
+        game.shapeRenderer.rect(p1BarX, manaY, barMaxW, manaH);
+        // Mana Fill (Vibrant Electric Cyan / Emerald Green)
+        float p1ManaFillW = (p1SuperGauge / 100f) * barMaxW;
+        game.shapeRenderer.setColor(0.0f, 0.95f, 0.55f, 1f);
+        game.shapeRenderer.rect(p1BarX + barMaxW - p1ManaFillW, manaY, p1ManaFillW, manaH);
+        game.shapeRenderer.end();
+
+        // Mana Bar Border
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        game.shapeRenderer.setColor(0.2f, 0.95f, 0.6f, 0.9f);
+        game.shapeRenderer.rect(p1BarX, manaY, barMaxW, manaH);
+        // 3 Segment Level Dividers (at 33.3% and 66.6%)
+        game.shapeRenderer.setColor(0.05f, 0.2f, 0.15f, 0.85f);
+        float seg1 = p1BarX + barMaxW * 0.333f;
+        float seg2 = p1BarX + barMaxW * 0.666f;
+        game.shapeRenderer.line(seg1, manaY, seg1, manaY + manaH);
+        game.shapeRenderer.line(seg2, manaY, seg2, manaY + manaH);
+        game.shapeRenderer.end();
+
+        // 3. Round Win Dots (Under Mana bar)
+        float dotY = manaY - 14;
+        if (game.texRoundDotEmpty != null && game.texRoundDotFilledP1 != null) {
+            game.batch.begin();
+            for (int i = 0; i < ROUNDS_TO_WIN; i++) {
+                float dotX = p1BarX + barMaxW - (i * 22) - 15;
+                Texture dt = (i < p1RoundsWon) ? game.texRoundDotFilledP1 : game.texRoundDotEmpty;
+                game.batch.draw(dt, dotX - 7, dotY - 7, 14, 14);
+            }
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            for (int i = 0; i < ROUNDS_TO_WIN; i++) {
+                float dotX = p1BarX + barMaxW - (i * 20) - 15;
+                if (i < p1RoundsWon) {
+                    game.shapeRenderer.setColor(1.0f, 0.85f, 0.1f, 1f); // Filled Gold
+                } else {
+                    game.shapeRenderer.setColor(0.2f, 0.25f, 0.3f, 0.8f);
+                }
+                game.shapeRenderer.circle(dotX, dotY, 6, 12);
+            }
+            game.shapeRenderer.end();
+        }
+
+        // 4. P1 Portrait Box & Mana Level Badge
+        float portSize = h * 0.088f;
+        float portX = p1BarX - portSize - 6;
+        float portY = barY - (portSize - barH) / 2f;
+
+        game.batch.begin();
+        if (game.texBytePortrait != null) {
+            game.batch.draw(game.texBytePortrait, portX, portY, portSize, portSize);
+        } else if (game.texPlayerIdle != null) {
+            game.batch.draw(game.texPlayerIdle, portX + 2, portY + 2, portSize - 4, portSize - 4);
+        }
+        if (game.texPortraitFramePlayer != null) {
+            game.batch.draw(game.texPortraitFramePlayer, portX, portY, portSize, portSize);
+        }
         game.batch.end();
 
-        // --- Center VS / Round Badge ---
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.08f, 0.08f, 0.12f, 0.9f);
-        float badgeW = w * 0.07f;
-        float badgeH = barH * 1.4f;
-        game.shapeRenderer.rect(w / 2f - badgeW / 2f, barY - (badgeH - barH) / 2f, badgeW, badgeH);
-        game.shapeRenderer.end();
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(1f, 0.85f, 0.1f, 1f);
-        game.shapeRenderer.rect(w / 2f - badgeW / 2f, barY - (badgeH - barH) / 2f, badgeW, badgeH);
-        game.shapeRenderer.end();
+        if (game.texPortraitFramePlayer == null) {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(0.0f, 0.85f, 1f, 1f);
+            game.shapeRenderer.rect(portX, portY, portSize, portSize);
+            game.shapeRenderer.end();
+        }
 
+        // P1 Text Labels (Name + Mana Level Number)
         game.batch.begin();
-        game.fontBold.setColor(1f, 0.92f, 0.2f, 1f);
-        game.drawTextCentered(game.fontBold, "VS", w / 2f, barY + barH / 2f);
+        game.fontBold.setColor(1, 1, 1, 1);
+        game.fontBold.draw(game.batch, "CAT", p1BarX + 8, barY + barH + 20);
+
+        // P1 Mana Level Badge (Cyan / Emerald)
+        String p1ManaLabel = (p1SuperLevel >= 3) ? "MANA: MAX" : ("MANA: LV." + p1SuperLevel);
+        game.fontSmall.setColor(0.0f, 0.95f, 0.55f, 1f);
+        game.drawTextCentered(game.fontSmall, p1ManaLabel, p1BarX + 60, manaY + manaH / 2f);
         game.batch.end();
 
-        // --- Enemy Health Bar (Right) ---
+        // =========================================================================
+        // --- PLAYER 2 (Right - Orange / Crimson Theme) ---
+        // =========================================================================
+
+        // 1. Health Bar Container
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0.12f, 0.12f, 0.15f, 0.9f);
-        game.shapeRenderer.rect(eBarX, barY, barMaxW, barH);
-
-        // Fill from right to left
-        float eFillW = barMaxW * (Math.max(0, enemyHP) / 100f);
-        game.shapeRenderer.setColor(1.0f, 0.08f, 0.25f, 1.0f);
-        game.shapeRenderer.rect(eBarX + barMaxW - eFillW + 2, barY + 2, eFillW - 4, barH - 4);
+        game.shapeRenderer.setColor(0.12f, 0.12f, 0.16f, 0.92f);
+        game.shapeRenderer.rect(p2BarX, barY, barMaxW, barH);
+        // Yellow delayed drain bar
+        float p2DrainW = (p2DisplayHP / (float) p2MaxHP) * barMaxW;
+        game.shapeRenderer.setColor(1.0f, 0.88f, 0.2f, 0.85f);
+        game.shapeRenderer.rect(p2BarX, barY, p2DrainW, barH);
+        // Health Fill (Orange / Crimson)
+        float p2FillW = (p2HP / (float) p2MaxHP) * barMaxW;
+        game.shapeRenderer.setColor(1.0f, mode == GameMode.VERSUS ? 0.60f : 0.15f, 0.2f, 1f);
+        game.shapeRenderer.rect(p2BarX, barY, p2FillW, barH);
         game.shapeRenderer.end();
 
+        // Health Bar Border
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(1.0f, 0.2f, 0.4f, 1f);
-        game.shapeRenderer.rect(eBarX, barY, barMaxW, barH);
+        game.shapeRenderer.setColor(1.0f, mode == GameMode.VERSUS ? 0.7f : 0.3f, 0.3f, 0.9f);
+        game.shapeRenderer.rect(p2BarX, barY, barMaxW, barH);
         game.shapeRenderer.end();
+
+        // 2. Combined Mana / Special Meter (Directly below Health Bar)
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        // Mana Bar Background
+        game.shapeRenderer.setColor(0.15f, 0.10f, 0.08f, 0.95f);
+        game.shapeRenderer.rect(p2BarX, manaY, barMaxW, manaH);
+        // Mana Fill (Fiery Gold / Sun Orange)
+        float p2ManaFillW = (p2SuperGauge / 100f) * barMaxW;
+        game.shapeRenderer.setColor(1.0f, 0.70f, 0.15f, 1f);
+        game.shapeRenderer.rect(p2BarX, manaY, p2ManaFillW, manaH);
+        game.shapeRenderer.end();
+
+        // Mana Bar Border
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        game.shapeRenderer.setColor(1.0f, 0.75f, 0.2f, 0.9f);
+        game.shapeRenderer.rect(p2BarX, manaY, barMaxW, manaH);
+        // 3 Segment Level Dividers (at 33.3% and 66.6%)
+        game.shapeRenderer.setColor(0.25f, 0.15f, 0.05f, 0.85f);
+        float p2Seg1 = p2BarX + barMaxW * 0.333f;
+        float p2Seg2 = p2BarX + barMaxW * 0.666f;
+        game.shapeRenderer.line(p2Seg1, manaY, p2Seg1, manaY + manaH);
+        game.shapeRenderer.line(p2Seg2, manaY, p2Seg2, manaY + manaH);
+        game.shapeRenderer.end();
+
+        // 3. Round Win Dots (Under Mana bar)
+        if (game.texRoundDotEmpty != null && game.texRoundDotFilledP2 != null) {
+            game.batch.begin();
+            for (int i = 0; i < ROUNDS_TO_WIN; i++) {
+                float dotX = p2BarX + (i * 22) + 15;
+                Texture dt = (i < p2RoundsWon) ? game.texRoundDotFilledP2 : game.texRoundDotEmpty;
+                game.batch.draw(dt, dotX - 7, dotY - 7, 14, 14);
+            }
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            for (int i = 0; i < ROUNDS_TO_WIN; i++) {
+                float dotX = p2BarX + (i * 20) + 15;
+                if (i < p2RoundsWon) {
+                    game.shapeRenderer.setColor(1.0f, 0.85f, 0.1f, 1f);
+                } else {
+                    game.shapeRenderer.setColor(0.2f, 0.25f, 0.3f, 0.8f);
+                }
+                game.shapeRenderer.circle(dotX, dotY, 6, 12);
+            }
+            game.shapeRenderer.end();
+        }
+
+        // 4. P2 Portrait Box & Mana Level Badge
+        float p2PortX = p2BarX + barMaxW + 6;
 
         game.batch.begin();
-        game.fontBold.setColor(1.0f, 0.2f, 0.4f, 1f);
-        float eNameW = game.getTextWidth(game.fontBold, "WANNACRY");
-        game.fontBold.draw(game.batch, "WANNACRY", eBarX + barMaxW - eNameW, barY + barH + 24);
+        if (mode == GameMode.VERSUS) {
+            if (game.texBytePortrait != null) {
+                game.batch.setColor(1.0f, 0.65f, 0.2f, 1f);
+                game.batch.draw(game.texBytePortrait, p2PortX + portSize, portY, -portSize, portSize);
+                game.batch.setColor(1, 1, 1, 1);
+            } else if (game.texPlayerIdle != null) {
+                game.batch.setColor(1.0f, 0.65f, 0.2f, 1f);
+                game.batch.draw(game.texPlayerIdle, p2PortX + portSize - 2, portY + 2, -(portSize - 4), portSize - 4);
+                game.batch.setColor(1, 1, 1, 1);
+            }
+            if (game.texPortraitFrameP2 != null) {
+                game.batch.draw(game.texPortraitFrameP2, p2PortX, portY, portSize, portSize);
+            }
+            game.fontBold.setColor(1.0f, 0.7f, 0.2f, 1);
+            game.drawTextCentered(game.fontBold, "CAT (P2)", p2BarX + barMaxW - 60, barY + barH + 20);
+        } else {
+            if (game.texWannaCryPortrait != null) {
+                game.batch.draw(game.texWannaCryPortrait, p2PortX + portSize, portY, -portSize, portSize);
+            } else if (game.texEnemyIdle != null) {
+                game.batch.draw(game.texEnemyIdle, p2PortX + portSize - 2, portY + 2, -(portSize - 4), portSize - 4);
+            }
+            if (game.texPortraitFrameEnemy != null) {
+                game.batch.draw(game.texPortraitFrameEnemy, p2PortX, portY, portSize, portSize);
+            }
+            game.fontBold.setColor(1.0f, 0.3f, 0.3f, 1);
+            game.drawTextCentered(game.fontBold, "WANNACRY", p2BarX + barMaxW - 60, barY + barH + 20);
+        }
 
-        game.fontSmall.setColor(1f, 1f, 1f, 0.95f);
-        game.fontSmall.draw(game.batch, enemyHP + " HP", eBarX + barMaxW - 75, barY + barH * 0.7f);
+        // P2 Mana Level Badge (Fiery Gold / Orange)
+        String p2ManaLabel = (p2SuperLevel >= 3) ? "MANA: MAX" : ("MANA: LV." + p2SuperLevel);
+        game.fontSmall.setColor(1.0f, 0.75f, 0.2f, 1f);
+        game.drawTextCentered(game.fontSmall, p2ManaLabel, p2BarX + barMaxW - 60, manaY + manaH / 2f);
+        game.batch.end();
+
+        if (game.texPortraitFrameEnemy == null) {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(1.0f, mode == GameMode.VERSUS ? 0.6f : 0.2f, 0.2f, 1f);
+            game.shapeRenderer.rect(p2PortX, portY, portSize, portSize);
+            game.shapeRenderer.end();
+        }
+
+        // =========================================================================
+        // --- CENTER 99s FIGHT TIMER ---
+        // =========================================================================
+        float timerBoxW = w * 0.09f;
+        float timerBoxH = barH * 1.55f;
+        float timerBoxX = w / 2f - timerBoxW / 2f;
+        float timerBoxY = barY - (timerBoxH - barH) / 2f;
+
+        if (game.texTimerFrame != null) {
+            game.batch.begin();
+            game.batch.draw(game.texTimerFrame, timerBoxX - 4, timerBoxY - 4, timerBoxW + 8, timerBoxH + 8);
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(0.06f, 0.08f, 0.14f, 0.95f);
+            game.shapeRenderer.rect(timerBoxX, timerBoxY, timerBoxW, timerBoxH);
+            game.shapeRenderer.end();
+
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(1.0f, 0.85f, 0.2f, 1f);
+            game.shapeRenderer.rect(timerBoxX, timerBoxY, timerBoxW, timerBoxH);
+            game.shapeRenderer.end();
+        }
+
+        game.batch.begin();
+        int tSecs = Math.max(0, (int) Math.ceil(roundTimer));
+        game.fontBold.setColor(1.0f, 0.9f, 0.2f, 1);
+        game.drawTextCentered(game.fontBold, String.valueOf(tSecs), w / 2f, timerBoxY + timerBoxH / 2f);
+
+        if (game.texVsBadge != null) {
+            float vsW = h * 0.055f;
+            float vsH = vsW * 0.65f;
+            game.batch.draw(game.texVsBadge, w / 2f - vsW / 2f, timerBoxY - vsH - 2, vsW, vsH);
+        }
         game.batch.end();
     }
 
     void drawTouchControls(float w, float h) {
-        float size = btnSize;
+        float btnSize = h * 0.135f;
         float padY = h * 0.045f;
 
-        drawTouchBtn(w * 0.04f, padY, size, size, "LEFT", 0x00bcd4, 0x1a3344);
-        drawTouchBtn(w * 0.17f, padY, size, size, "RIGHT", 0x00bcd4, 0x1a3344);
+        // Player 1 Controls (Cyan)
+        float p1LeftX = w * 0.04f;
+        float p1RightX = w * 0.17f;
+        float p1AtkX = (mode == GameMode.VERSUS) ? w * 0.31f : w * 0.65f;
+        float p1SplX = (mode == GameMode.VERSUS) ? w * 0.39f : w * 0.77f;
+        float p1SplY = (mode == GameMode.VERSUS) ? padY + btnSize * 0.7f : padY + btnSize * 0.45f;
+        float p1BlkX = (mode == GameMode.VERSUS) ? w * 0.42f : w * 0.88f;
 
-        drawTouchBtn(w * 0.65f, padY, size, size, "ATK", 0xff1744, 0x4a121d);
-        drawTouchBtn(w * 0.77f, padY + size * 0.45f, size, size, "SP", 0x00e5ff, 0x0c3b52);
-        drawTouchBtn(w * 0.88f, padY, size, size, "BLK", 0xffeb3b, 0x423d0a);
+        drawArcadeButton(p1LeftX, padY, btnSize, "<", 0x00bcd4, p1LeftWasPressed ? game.texDpadLeftPressed : game.texDpadLeft);
+        drawArcadeButton(p1RightX, padY, btnSize, ">", 0x00bcd4, p1RightWasPressed ? game.texDpadRightPressed : game.texDpadRight);
+        drawArcadeButton(p1AtkX, padY, btnSize, "ATK", 0xff1744, p1AtkWasPressed ? game.texBtnAttackPressed : game.texBtnAttack);
+        drawArcadeButton(p1SplX, p1SplY, btnSize, "SP", 0x00e5ff, p1SplWasPressed ? game.texBtnSpecialPressed : game.texBtnSpecial);
+        drawArcadeButton(p1BlkX, padY, btnSize, "BLK", 0xffeb3b, p1Block ? game.texBtnBlockPressed : game.texBtnBlock);
+
+        // Player 2 Controls (Orange - only in Versus Mode)
+        if (mode == GameMode.VERSUS) {
+            float p2LeftX = w * 0.54f;
+            float p2RightX = w * 0.67f;
+            float p2AtkX = w * 0.80f;
+            float p2SplX = w * 0.88f;
+            float p2SplY = padY + btnSize * 0.7f;
+            float p2BlkX = w * 0.91f;
+
+            drawArcadeButton(p2LeftX, padY, btnSize, "<", 0xff9800, p2LeftWasPressed ? game.texDpadLeftPressed : game.texDpadLeft);
+            drawArcadeButton(p2RightX, padY, btnSize, ">", 0xff9800, p2RightWasPressed ? game.texDpadRightPressed : game.texDpadRight);
+            drawArcadeButton(p2AtkX, padY, btnSize, "ATK", 0xff5722, p2AtkWasPressed ? game.texBtnAttackPressed : game.texBtnAttack);
+            drawArcadeButton(p2SplX, p2SplY, btnSize, "SP", 0xffb74d, p2SplWasPressed ? game.texBtnSpecialPressed : game.texBtnSpecial);
+            drawArcadeButton(p2BlkX, padY, btnSize, "BLK", 0xffeb3b, p2Block ? game.texBtnBlockPressed : game.texBtnBlock);
+        }
     }
 
-    void drawTouchBtn(float x, float y, float bw, float bh, String label, int hoverCol, int col) {
-        boolean pressed = false;
-        for (int i = 0; i < 5; i++) {
-            if (Gdx.input.isTouched(i)) {
-                float tx = Gdx.input.getX(i);
-                float ty = Gdx.graphics.getHeight() - Gdx.input.getY(i);
-                if (tx >= x && tx <= x + bw && ty >= y && ty <= y + bh) {
-                    pressed = true;
-                    break;
-                }
-            }
+    void drawArcadeButton(float x, float y, float size, String label, int col, Texture tex) {
+        if (tex != null) {
+            game.batch.begin();
+            game.batch.draw(tex, x, y, size, size);
+            game.batch.end();
+            return;
         }
 
-        int c = pressed ? hoverCol : col;
-        float r = ((c >> 16) & 0xFF) / 255f;
-        float g = ((c >> 8) & 0xFF) / 255f;
-        float b = (c & 0xFF) / 255f;
+        float r = ((col >> 16) & 0xFF) / 255f;
+        float g = ((col >> 8) & 0xFF) / 255f;
+        float b = (col & 0xFF) / 255f;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(r, g, b, pressed ? 0.9f : 0.65f);
-        game.shapeRenderer.rect(x, y, bw, bh);
+        game.shapeRenderer.setColor(r * 0.35f, g * 0.35f, b * 0.35f, 0.75f);
+        game.shapeRenderer.circle(x + size / 2f, y + size / 2f, size / 2f, 24);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, pressed ? 1f : 0.75f);
-        game.shapeRenderer.rect(x, y, bw, bh);
+        game.shapeRenderer.setColor(r, g, b, 0.95f);
+        game.shapeRenderer.circle(x + size / 2f, y + size / 2f, size / 2f, 24);
         game.shapeRenderer.end();
 
         game.batch.begin();
-        game.fontBold.setColor(1f, 1f, 1f, pressed ? 1.0f : 0.9f);
-        game.drawTextCentered(game.fontBold, label, x + bw / 2f, y + bh / 2f);
+        game.fontBold.setColor(1, 1, 1, 1);
+        game.drawTextCentered(game.fontBold, label, x + size / 2f, y + size / 2f);
         game.batch.end();
     }
 
-    void drawIntroBanner(float w, float h) {
-        String bannerText = (introPhase == 0) ? "ROUND 1" : "FIGHT!";
-        float progress = introTimer / (introPhase == 0 ? ROUND_BANNER_DURATION : FIGHT_BANNER_DURATION);
+    void drawRoundBanner(float w, float h) {
+        float bannerH = h * 0.22f;
+        float bannerY = h * 0.44f;
 
-        float scale = (progress < 0.2f) ? 1f + (1f - progress / 0.2f) * 0.5f : 1f;
-        float alpha = (progress < 0.15f) ? progress / 0.15f : (progress > 0.85f) ? (1f - progress) / 0.15f : 1f;
+        Texture bannerTex = null;
+        if (bannerText.startsWith("ROUND") || bannerText.contains("FINAL ROUND")) {
+            bannerTex = game.texRoundBanner;
+        } else if (bannerText.equals("FIGHT!")) {
+            bannerTex = game.texFightBanner;
+        } else if (bannerText.startsWith("K.O.") || bannerText.startsWith("DOUBLE K.O.")) {
+            bannerTex = game.texKoBanner;
+        } else if (bannerText.startsWith("TIME OVER")) {
+            bannerTex = game.texTimeOverBanner;
+        }
 
-        float barH = h * 0.18f;
-        float barY = h / 2f - barH / 2f;
+        if (bannerTex != null) {
+            game.batch.begin();
+            float bw = w * 0.65f;
+            float bh = bannerH * 1.15f;
+            game.batch.draw(bannerTex, w / 2f - bw / 2f, bannerY + bannerH / 2f - bh / 2f, bw, bh);
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(0, 0, 0, 0.78f);
+            game.shapeRenderer.rect(0, bannerY, w, bannerH);
+            game.shapeRenderer.end();
+
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(1.0f, 0.85f, 0.1f, 1f);
+            game.shapeRenderer.rect(0, bannerY, w, bannerH);
+            game.shapeRenderer.end();
+        }
+
+        game.batch.begin();
+        game.fontTitle.setColor(1.0f, 0.88f, 0.2f, 1);
+        String[] lines = bannerText.split("\n");
+        if (lines.length == 1) {
+            game.drawTextCentered(game.fontTitle, lines[0], w / 2f, bannerY + bannerH / 2f);
+        } else {
+            game.drawTextCentered(game.fontTitle, lines[0], w / 2f, bannerY + bannerH * 0.68f);
+            game.fontBold.setColor(1, 1, 1, 1);
+            game.drawTextCentered(game.fontBold, lines[1], w / 2f, bannerY + bannerH * 0.30f);
+        }
+        game.batch.end();
+    }
+
+    void drawMatchOverBanner(float w, float h) {
+        float bannerH = h * 0.35f;
+        float bannerY = h * 0.35f;
+
+        if (game.texWinnerBanner != null) {
+            game.batch.begin();
+            float bw = w * 0.70f;
+            float bh = bannerH * 0.85f;
+            game.batch.draw(game.texWinnerBanner, w / 2f - bw / 2f, bannerY + bannerH / 2f - bh / 2f + 25, bw, bh);
+            game.batch.end();
+        } else {
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(0.04f, 0.08f, 0.14f, 0.92f);
+            game.shapeRenderer.rect(0, bannerY, w, bannerH);
+            game.shapeRenderer.end();
+
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+            game.shapeRenderer.setColor(0.0f, 0.85f, 1f, 1f);
+            game.shapeRenderer.rect(0, bannerY, w, bannerH);
+            game.shapeRenderer.end();
+        }
+
+        game.batch.begin();
+        game.fontTitle.setColor(1.0f, 0.88f, 0.2f, 1);
+        game.drawTextCentered(game.fontTitle, matchWinnerText, w / 2f, bannerY + bannerH * 0.72f);
+        game.batch.end();
+
+        // Rematch & Menu Buttons
+        float btnW = w * 0.22f;
+        float btnH = h * 0.075f;
+        float btnY = bannerY + bannerH * 0.22f;
+
+        drawButton(w * 0.24f, btnY, btnW, btnH, "REMATCH", 0x00e676, 0x00b248);
+        if (isButtonClicked(w * 0.24f, btnY, btnW, btnH)) {
+            resetFight();
+        }
+
+        drawButton(w * 0.54f, btnY, btnW, btnH, "MAIN MENU", 0x546e7a, 0x263238);
+        if (isButtonClicked(w * 0.54f, btnY, btnW, btnH)) {
+            game.setScreen(game.menuScreen);
+        }
+    }
+
+    void drawPauseOverlay(float w, float h) {
+        if (game.texPauseOverlay != null) {
+            game.batch.begin();
+            game.batch.draw(game.texPauseOverlay, 0, 0, w, h);
+            game.batch.end();
+        } else {
+            // Dark translucent shroud
+            game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+            game.shapeRenderer.setColor(0, 0, 0, 0.78f);
+            game.shapeRenderer.rect(0, 0, w, h);
+            game.shapeRenderer.end();
+        }
+
+        // Pause Menu Card
+        float cardW = w * 0.44f;
+        float cardH = h * 0.65f;
+        float cardX = w / 2f - cardW / 2f;
+        float cardY = h * 0.18f;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(0, 0, 0, alpha * 0.85f);
-        game.shapeRenderer.rect(0, barY, w, barH);
+        game.shapeRenderer.setColor(0.05f, 0.08f, 0.14f, 0.95f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, cardH);
         game.shapeRenderer.end();
 
-        int lineCol = (introPhase == 0) ? 0x00bcd4 : 0xff1744;
-        float lr = ((lineCol >> 16) & 0xFF) / 255f;
-        float lg = ((lineCol >> 8) & 0xFF) / 255f;
-        float lb = (lineCol & 0xFF) / 255f;
-
-        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(lr, lg, lb, alpha);
-        game.shapeRenderer.rect(0, barY + barH - 4, w, 4);
-        game.shapeRenderer.rect(0, barY, w, 4);
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 1f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, cardH);
         game.shapeRenderer.end();
 
         game.batch.begin();
-        game.fontTitle.getData().setScale(game.fontTitle.getData().scaleX * scale);
-        game.fontTitle.setColor(lr, lg, lb, alpha);
-        game.drawTextCentered(game.fontTitle, bannerText, w / 2f, barY + barH / 2f);
-        game.fontTitle.getData().setScale(game.fontTitle.getData().scaleX / scale);
+        game.fontTitle.setColor(1, 1, 1, 1);
+        game.drawTextCentered(game.fontTitle, "SYSTEM PAUSED", w / 2f, cardY + cardH - 45);
         game.batch.end();
+
+        float btnW = cardW * 0.82f;
+        float btnH = h * 0.085f;
+        float btnX = w / 2f - btnW / 2f;
+        float startY = cardY + cardH - 120;
+        float gap = btnH * 1.25f;
+
+        // 1. Resume
+        drawButton(btnX, startY, btnW, btnH, "RESUME COMBAT", 0x00bcd4, 0x006064);
+        if (isButtonClicked(btnX, startY, btnW, btnH)) {
+            isPaused = false;
+        }
+
+        // 2. Restart Match
+        drawButton(btnX, startY - gap, btnW, btnH, "RESTART MATCH", 0xff9800, 0xbf360c);
+        if (isButtonClicked(btnX, startY - gap, btnW, btnH)) {
+            isPaused = false;
+            resetFight();
+        }
+
+        // 3. How to Play
+        drawButton(btnX, startY - gap * 2, btnW, btnH, "HOW TO PLAY", 0x26a69a, 0x0d473d);
+        if (isButtonClicked(btnX, startY - gap * 2, btnW, btnH)) {
+            game.setScreen(game.howToPlayScreen);
+        }
+
+        // 4. Quit
+        drawButton(btnX, startY - gap * 3, btnW, btnH, "QUIT TO MENU", 0x546e7a, 0x263238);
+        if (isButtonClicked(btnX, startY - gap * 3, btnW, btnH)) {
+            isPaused = false;
+            game.setScreen(game.menuScreen);
+        }
     }
 
     void drawButton(float x, float y, float bw, float bh, String text, int hoverCol, int col) {
@@ -956,12 +1801,12 @@ public class FightScreen implements Screen {
         float b = (c & 0xFF) / 255f;
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        game.shapeRenderer.setColor(r, g, b, hover ? 1f : 0.75f);
+        game.shapeRenderer.setColor(r, g, b, 0.85f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-        game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, 1f);
+        game.shapeRenderer.setColor(r * 1.3f, g * 1.3f, b * 1.3f, 1f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
 
@@ -979,27 +1824,26 @@ public class FightScreen implements Screen {
 
     void spawnParticles(float x, float y, int color, int count) {
         for (int i = 0; i < count; i++) {
-            particles.add(new Particle(x, y, (rand.nextFloat() - 0.5f) * 8, (rand.nextFloat() - 0.5f) * 8, color, 3 + rand.nextInt(5), 30 + rand.nextInt(20)));
+            float vx = (rand.nextFloat() - 0.5f) * 8f;
+            float vy = (rand.nextFloat() - 0.5f) * 8f + 2f;
+            particles.add(new Particle(x, y, vx, vy, color, 3 + rand.nextInt(3), 15 + rand.nextInt(12)));
         }
     }
 
-    void spawnCodeBurst(float x, float y) {
-        String[] codes = {"0xFF", "ERR", "NULL", "BUG", "//", "{}", "[]", "&&", "||", "!="};
-        for (int i = 0; i < 6; i++) {
-            particles.add(new Particle(x, y, (rand.nextFloat() - 0.5f) * 5, 2 + rand.nextFloat() * 4, 0x00ffff, 14, 45, codes[rand.nextInt(codes.length)], true));
-        }
+    void addNotice(String text, float x, float y, int color) {
+        notices.add(new FloatingNotice(text, x, y, color, 45));
     }
 
-    @Override public void resize(int width, int height) {
-        game.updateFontScales();
-        resetFight();
-    }
-    @Override public void pause() {}
+    @Override public void resize(int width, int height) { game.updateFontScales(); }
+    @Override public void pause() { isPaused = true; }
     @Override public void resume() {}
-    @Override public void hide() {}
+    @Override public void hide() {
+        game.stopMusic();
+    }
     @Override public void dispose() {}
 
-    class Hitbox {
+    // Inner Helper Classes
+    static class Hitbox {
         float x, y, w, h;
         int damage, hitstun;
         Hitbox(float x, float y, float w, float h, int damage, int hitstun) {
@@ -1008,7 +1852,7 @@ public class FightScreen implements Screen {
         }
     }
 
-    class Projectile {
+    static class Projectile {
         float x, y, vx;
         int damage;
         boolean active = true;
@@ -1017,19 +1861,30 @@ public class FightScreen implements Screen {
         }
     }
 
-    class Particle {
-        float x, y, vx, vy, size;
-        int color, life, maxLife;
-        String text;
-        boolean isText;
-        Particle(float x, float y, float vx, float vy, int color, float size, int life) {
+    static class Particle {
+        float x, y, vx, vy;
+        int color, size, life, maxLife;
+        Particle(float x, float y, float vx, float vy, int color, int size, int maxLife) {
             this.x = x; this.y = y; this.vx = vx; this.vy = vy;
-            this.color = color; this.size = size; this.life = life; this.maxLife = life;
-            this.isText = false;
+            this.color = color; this.size = size; this.life = maxLife; this.maxLife = maxLife;
         }
-        Particle(float x, float y, float vx, float vy, int color, float size, int life, String text, boolean isText) {
-            this(x, y, vx, vy, color, size, life);
-            this.text = text; this.isText = isText;
+    }
+
+    static class GhostTrail {
+        float x, y, w, h, facing;
+        int color, life;
+        GhostTrail(float x, float y, float w, float h, float facing, int color, int life) {
+            this.x = x; this.y = y; this.w = w; this.h = h;
+            this.facing = facing; this.color = color; this.life = life;
+        }
+    }
+
+    static class FloatingNotice {
+        String text;
+        float x, y;
+        int color, life;
+        FloatingNotice(String text, float x, float y, int color, int life) {
+            this.text = text; this.x = x; this.y = y; this.color = color; this.life = life;
         }
     }
 }
