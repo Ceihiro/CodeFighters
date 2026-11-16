@@ -7,7 +7,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 
 public class GalleryScreen implements Screen {
     final CodeFightersGame game;
-    int tab = 0; // 0 = Characters, 1 = Enemies, 2 = Combos
+    int tab = 0; // 0 = Characters, 1 = Enemies, 2 = Dossier
     int selectedChar = 0;
 
     public GalleryScreen(final CodeFightersGame game) {
@@ -37,10 +37,13 @@ public class GalleryScreen implements Screen {
         game.batch.end();
 
         // Dark overlay / Cyberpunk background grid
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0, 0, 0, 0.65f);
         game.shapeRenderer.rect(0, 0, w, h);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(0.08f, 0.10f, 0.20f, 1);
@@ -55,39 +58,37 @@ public class GalleryScreen implements Screen {
         game.batch.end();
 
         // Tabs
-        float tabW = w * 0.27f;
-        float tabH = h * 0.075f;
-        float tabY = h * 0.85f;
+        float tabW = w * 0.28f;
+        float tabH = h * 0.065f;
+        float tabY = h * 0.88f;
 
-        drawTab(w * 0.07f, tabY, tabW, tabH, "CHARACTERS", tab == 0);
-        drawTab(w * 0.365f, tabY, tabW, tabH, "THREATS", tab == 1);
-        drawTab(w * 0.66f, tabY, tabW, tabH, "COMBOS", tab == 2);
+        drawTab(w*0.04f, tabY, tabW, tabH, "CHARACTERS", tab==0);
+        drawTab(w*0.36f, tabY, tabW, tabH, "THREATS", tab==1);
+        drawTab(w*0.68f, tabY, tabW, tabH, "DOSSIER", tab==2);
 
-        if (isTabClicked(w * 0.07f, tabY, tabW, tabH)) {
+        if (isTabClicked(w*0.04f, tabY, tabW, tabH)) {
             if (tab != 0) game.playSound(game.sndMenuNav, 0.7f);
             tab = 0;
         }
-        if (isTabClicked(w * 0.365f, tabY, tabW, tabH)) {
+        if (isTabClicked(w*0.36f, tabY, tabW, tabH)) {
             if (tab != 1) game.playSound(game.sndMenuNav, 0.7f);
             tab = 1;
         }
-        if (isTabClicked(w * 0.66f, tabY, tabW, tabH)) {
+        if (isTabClicked(w*0.68f, tabY, tabW, tabH)) {
             if (tab != 2) game.playSound(game.sndMenuNav, 0.7f);
             tab = 2;
         }
 
-        float contentY = h * 0.82f;
-        float contentH = h * 0.68f;
+        float contentY = h*0.86f;
+        float contentH = h*0.72f;
 
         if (tab == 0) drawCharactersTab(w, h, contentY, contentH);
         else if (tab == 1) drawEnemiesTab(w, h, contentY, contentH);
-        else drawCombosTab(w, h, contentY, contentH);
+        else drawDossierTab(w, h, contentY, contentH);
 
         // Back button
-        float btnW = w * 0.18f;
-        float btnH = h * 0.075f;
-        drawButton(w * 0.04f, h * 0.035f, btnW, btnH, "BACK", 0x546e7a, 0x263238);
-        if (isButtonClicked(w * 0.04f, h * 0.035f, btnW, btnH)) {
+        drawButton(w*0.04f, h*0.03f, w*0.20f, h*0.07f, "BACK", 0x546e7a, 0x263238);
+        if (isButtonClicked(w*0.04f, h*0.03f, w*0.20f, h*0.07f)) {
             game.playSound(game.sndMenuBack, 0.8f);
             game.setScreen(game.menuScreen);
         }
@@ -99,10 +100,13 @@ public class GalleryScreen implements Screen {
         float cardY = contentY - contentH;
 
         // Container
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0.06f, 0.08f, 0.14f, 0.92f);
         game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 0.9f);
@@ -110,8 +114,8 @@ public class GalleryScreen implements Screen {
         game.shapeRenderer.end();
 
         // Character Sprite (Left side)
-        float spriteH = contentH * 0.85f;
-        float spriteW = spriteH;
+        float spriteH = contentH * 0.65f;
+        float spriteW = spriteH * 0.6f;
         float spriteX = cardX + 30;
         float spriteY = cardY + contentH * 0.08f;
 
@@ -123,7 +127,7 @@ public class GalleryScreen implements Screen {
 
         // Character Info (Right side)
         CharacterData c = CharacterData.getTeamLead();
-        float textX = cardX + spriteW + 60;
+        float textX = cardX + spriteW + 40;
         float textY = contentY - 40;
 
         game.batch.begin();
@@ -159,10 +163,13 @@ public class GalleryScreen implements Screen {
         float cardW = w * 0.86f;
         float cardY = contentY - contentH;
 
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0.08f, 0.05f, 0.08f, 0.92f);
         game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(1.0f, 0.2f, 0.35f, 0.9f);
@@ -170,8 +177,8 @@ public class GalleryScreen implements Screen {
         game.shapeRenderer.end();
 
         EnemyData e = EnemyData.getWannaCry();
-        float spriteH = contentH * 0.85f;
-        float spriteW = spriteH;
+        float spriteH = contentH * 0.65f;
+        float spriteW = spriteH * 0.6f;
         float spriteX = cardX + 30;
         float spriteY = cardY + contentH * 0.08f;
 
@@ -181,7 +188,7 @@ public class GalleryScreen implements Screen {
         }
         game.batch.end();
 
-        float textX = cardX + spriteW + 60;
+        float textX = cardX + spriteW + 40;
         float textY = contentY - 40;
 
         game.batch.begin();
@@ -269,6 +276,70 @@ public class GalleryScreen implements Screen {
         game.batch.end();
     }
 
+    void drawDossierTab(float w, float h, float contentY, float contentH) {
+        float cardX = w * 0.07f;
+        float cardW = w * 0.86f;
+        float cardY = contentY - contentH;
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        game.shapeRenderer.setColor(0.04f, 0.07f, 0.12f, 0.95f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
+        game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        game.shapeRenderer.setColor(0.31f, 0.76f, 0.97f, 0.9f);
+        game.shapeRenderer.rect(cardX, cardY, cardW, contentH);
+        game.shapeRenderer.end();
+
+        // Centre divider
+        game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        game.shapeRenderer.setColor(0.4f, 0.5f, 0.7f, 0.6f);
+        game.shapeRenderer.line(w * 0.5f, cardY, w * 0.5f, contentY);
+        game.shapeRenderer.end();
+
+        float lx = cardX + 20f;
+        float ly = contentY - 30f;
+        float rx = w * 0.52f;
+        float ry = contentY - 30f;
+
+        game.batch.begin();
+
+        // ---- LEFT: BYTE ----
+        game.fontBold.setColor(0.2f, 1f, 0.85f, 1f);
+        game.fontBold.draw(game.batch, "BYTE // DEFENDER", lx, ly); ly -= 32f;
+        game.fontSmall.setColor(0.9f, 0.9f, 0.95f, 1f);
+        game.fontSmall.draw(game.batch, "REAL NAME: CAT", lx, ly); ly -= 24f;
+        game.fontSmall.draw(game.batch, "ROLE: Ethical Hacker", lx, ly); ly -= 24f;
+        game.fontSmall.draw(game.batch, "CLASS: White-Hat Operative", lx, ly); ly -= 24f;
+        game.fontSmall.draw(game.batch, "WEAPON: Code Blaster", lx, ly); ly -= 24f;
+        game.fontSmall.draw(game.batch, "SPECIAL: Code Beam + Shield", lx, ly); ly -= 24f;
+        game.fontSmall.setColor(0.2f, 1f, 0.4f, 1f);
+        game.fontSmall.draw(game.batch, "STATUS: FRIENDLY", lx, ly); ly -= 32f;
+        game.fontSmall.setColor(0.75f, 0.9f, 1f, 1f);
+        game.fontSmall.draw(game.batch, "Bio: Elite defender trained in", lx, ly); ly -= 22f;
+        game.fontSmall.draw(game.batch, "offensive security ops.", lx, ly);
+
+        // ---- RIGHT: WANNACRY ----
+        game.fontBold.setColor(1f, 0.25f, 0.3f, 1f);
+        game.fontBold.draw(game.batch, "WANNACRY // THREAT", rx, ry); ry -= 32f;
+        game.fontSmall.setColor(0.9f, 0.9f, 0.95f, 1f);
+        game.fontSmall.draw(game.batch, "TYPE: Ransomware Worm", rx, ry); ry -= 24f;
+        game.fontSmall.draw(game.batch, "CVE: MS17-010 EternalBlue", rx, ry); ry -= 24f;
+        game.fontSmall.draw(game.batch, "ORIGIN: Lazarus Group", rx, ry); ry -= 24f;
+        game.fontSmall.draw(game.batch, "DAMAGE: $4B Worldwide", rx, ry); ry -= 24f;
+        game.fontSmall.draw(game.batch, "WEAKNESS: Kill Switch + Patch", rx, ry); ry -= 24f;
+        game.fontSmall.setColor(1f, 0.25f, 0.25f, 1f);
+        game.fontSmall.draw(game.batch, "STATUS: HOSTILE", rx, ry); ry -= 32f;
+        game.fontSmall.setColor(1f, 0.75f, 0.75f, 1f);
+        game.fontSmall.draw(game.batch, "Bio: Encrypts files, demands", rx, ry); ry -= 22f;
+        game.fontSmall.draw(game.batch, "Bitcoin. 150+ countries via SMBv1.", rx, ry);
+
+        game.batch.end();
+    }
+
     void drawTab(float x, float y, float w, float h, String text, boolean active) {
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(active ? 0.2f : 0.08f, active ? 0.45f : 0.12f, active ? 0.6f : 0.18f, 1);
@@ -302,10 +373,13 @@ public class GalleryScreen implements Screen {
         float g = ((c >> 8) & 0xFF) / 255f;
         float b = (c & 0xFF) / 255f;
 
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(r, g, b, hover ? 1f : 0.8f);
         game.shapeRenderer.rect(x, y, bw, bh);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         game.shapeRenderer.setColor(r * 1.4f, g * 1.4f, b * 1.4f, 1f);

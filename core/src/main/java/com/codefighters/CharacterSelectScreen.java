@@ -56,12 +56,12 @@ public class CharacterSelectScreen implements Screen {
         game.batch.end();
 
         // Card dimensions
-        float cardY = h * 0.44f;
-        float cardW = w * 0.38f;
-        float cardH = h * 0.54f;
+        float cardY = h * 0.50f;
+        float cardW = w * 0.36f;
+        float cardH = h * 0.46f;
 
         // === PLAYER CARD (Left) ===
-        float leftX = w * 0.08f;
+        float leftX = w * 0.05f;
         drawCharacterCard(leftX, cardY - cardH / 2f, cardW, cardH, true);
 
         // === VS BADGE (Center) ===
@@ -77,7 +77,7 @@ public class CharacterSelectScreen implements Screen {
         game.batch.end();
 
         // === ENEMY CARD (Right) ===
-        float rightX = w * 0.54f;
+        float rightX = w * 0.59f;
         drawCharacterCard(rightX, cardY - cardH / 2f, cardW, cardH, false);
 
         // === ENEMY SELECTION GRID (Bottom) ===
@@ -118,8 +118,8 @@ public class CharacterSelectScreen implements Screen {
 
         // === ACTION BUTTONS (Bottom) ===
         float btnW = w * 0.22f;
-        float btnH = h * 0.082f;
-        float btnY = h * 0.045f;
+        float btnH = h * 0.08f;
+        float btnY = h * 0.05f;
 
         drawButton(w * 0.18f, btnY, btnW, btnH, "BACK", 0x546e7a, 0x263238);
         if (isButtonClicked(w * 0.18f, btnY, btnW, btnH)) {
@@ -136,10 +136,13 @@ public class CharacterSelectScreen implements Screen {
 
     void drawCharacterCard(float x, float y, float w, float h, boolean isPlayer) {
         // Card Background
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0.06f, 0.07f, 0.12f, 0.92f);
         game.shapeRenderer.rect(x, y, w, h);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         // Card Border
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -182,8 +185,8 @@ public class CharacterSelectScreen implements Screen {
             game.fontBold.setColor(0.31f, 0.85f, 1.0f, 1f);
             game.fontBold.draw(game.batch, playerChar.name, padX, textY);
 
-            game.font.setColor(0.75f, 0.85f, 0.95f, 1f);
-            game.font.draw(game.batch, playerChar.subtitle, padX, textY - h * 0.07f);
+            game.fontSmall.setColor(0.75f, 0.85f, 0.95f, 1f);
+            game.fontSmall.draw(game.batch, playerChar.subtitle, padX, textY - h * 0.07f);
 
             game.fontSmall.setColor(0.6f, 0.8f, 0.95f, 0.9f);
             game.fontSmall.draw(game.batch, "Special: " + playerChar.specialName, padX, textY - h * 0.13f);
@@ -191,8 +194,8 @@ public class CharacterSelectScreen implements Screen {
             game.fontBold.setColor(1.0f, 0.2f, 0.35f, 1f);
             game.fontBold.draw(game.batch, enemy.name, padX, textY);
 
-            game.font.setColor(0.95f, 0.7f, 0.75f, 1f);
-            game.font.draw(game.batch, enemy.type, padX, textY - h * 0.07f);
+            game.fontSmall.setColor(0.95f, 0.7f, 0.75f, 1f);
+            game.fontSmall.draw(game.batch, enemy.type, padX, textY - h * 0.07f);
 
             game.fontSmall.setColor(0.9f, 0.6f, 0.6f, 0.9f);
             game.fontSmall.draw(game.batch, "Weakness: Block & Counter", padX, textY - h * 0.13f);

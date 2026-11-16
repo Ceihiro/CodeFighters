@@ -55,25 +55,25 @@ public class HowToPlayScreen implements Screen {
         // Instruction Panels
         float cardX = w * 0.06f;
         float cardW = w * 0.88f;
-        float startY = h * 0.82f;
-        float rowH = h * 0.105f;
+        float startY = h * 0.76f;
+        float rowH = h * 0.092f;
 
         drawInstructionRow(cardX, startY, cardW, rowH,
             "WALK", "LEFT / RIGHT buttons or A / D keys to walk across the stage.", 0x00bcd4);
 
-        drawInstructionRow(cardX, startY - rowH * 1.15f, cardW, rowH,
+        drawInstructionRow(cardX, startY - rowH * 1.08f, cardW, rowH,
             "DASH", "DOUBLE-TAP Left: Invincible Backdash! DOUBLE-TAP Right: Forward Dash into Dash Attack!", 0xff9800);
 
-        drawInstructionRow(cardX, startY - rowH * 2.30f, cardW, rowH,
+        drawInstructionRow(cardX, startY - rowH * 2.16f, cardW, rowH,
             "ATTACK", "Tap ATK (or J key) for light strikes. Chain 3 hits for combo! ATK during dash for Dash Attack (1.5x DMG)!", 0xff1744);
 
-        drawInstructionRow(cardX, startY - rowH * 3.45f, cardW, rowH,
+        drawInstructionRow(cardX, startY - rowH * 3.24f, cardW, rowH,
             "SPECIAL", "Tap SP (or K key) to unleash the Code Beam projectile (charges with combat).", 0x00e5ff);
 
-        drawInstructionRow(cardX, startY - rowH * 4.60f, cardW, rowH,
+        drawInstructionRow(cardX, startY - rowH * 4.32f, cardW, rowH,
             "BLOCK", "Hold BLK (or L key) to deploy cyber firewall, cutting all damage by 70%.", 0xffeb3b);
 
-        drawInstructionRow(cardX, startY - rowH * 5.75f, cardW, rowH,
+        drawInstructionRow(cardX, startY - rowH * 5.40f, cardW, rowH,
             "VERSUS 2P", "In Same-Device Versus, P1 fights on Left (Cyan) and P2 fights on Right (Orange) simultaneously!", 0x7c4dff);
 
         // Back button
@@ -92,6 +92,8 @@ public class HowToPlayScreen implements Screen {
         float b = (badgeCol & 0xFF) / 255f;
 
         // Container
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
         game.shapeRenderer.setColor(0.06f, 0.08f, 0.13f, 0.88f);
         game.shapeRenderer.rect(x, y, w, h);
@@ -101,6 +103,7 @@ public class HowToPlayScreen implements Screen {
         game.shapeRenderer.setColor(r, g, b, 0.9f);
         game.shapeRenderer.rect(x, y, badgeW, h);
         game.shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
 
         // Border
         game.shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -114,8 +117,8 @@ public class HowToPlayScreen implements Screen {
         game.drawTextCentered(game.fontBold, badge, x + badgeW / 2f, y + h / 2f);
 
         // Description Text
-        game.font.setColor(0.92f, 0.92f, 0.95f, 1f);
-        game.font.draw(game.batch, desc, x + badgeW + 20, y + h * 0.65f);
+        game.fontSmall.setColor(0.92f, 0.92f, 0.95f, 1f);
+        game.fontSmall.draw(game.batch, desc, x + badgeW + 20, y + h * 0.65f);
         game.batch.end();
     }
 
